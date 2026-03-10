@@ -473,7 +473,7 @@ const ZONES=['AMBA','Bahia Blanca','Córdoba','Costa+Tandil','La Plata','Mendoza
              'Paraná','Pinamar','Rosario','San Luis','Santa Fe','Tucuman'];
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const KPI_LABELS={bpp:'BPP (Ventas/FTE)',conv:'% Conversión',vpp:'VPP (Ventas/Visitas)',rp_pct:'% Ventas RP'};
+const KPI_LABELS={bpp:'BPP (Visitas/FTE)',conv:'% Conversión',vpp:'VPP (Ventas/FTE)',rp_pct:'% Ventas RP'};
 const RC=['#2e7fff','#5ba3ff','#7fbcff','#29c99a','#56d8b2','#7ae3c7',
           '#e0a729','#ebbe60','#f5d48e','#e05a5a','#e87a7a','#f0a0a0'];
 
@@ -539,15 +539,15 @@ function parseExcel(wb){
     return Array.from({length:nM},(_,m)=>{
       const vis=k.Visitas[zone]?.[m]||0,vb=k.VentasB[zone]?.[m]||0;
       const re=k.VentasRE[zone]?.[m]||0,rp=k.VentasRP[zone]?.[m]||0,fte=k.FTE[zone]?.[m]||0;
-      return{vis,vb,re,rp,fte:+fte.toFixed(4),bpp:fte?+(vb/fte).toFixed(4):null,
-        conv:vis?+(re/vis).toFixed(4):null,vpp:vis?+(vb/vis).toFixed(4):null,rp_pct:vb?+(rp/vb).toFixed(4):null};
+      return{vis,vb,re,rp,fte:+fte.toFixed(4),bpp:fte?+(vis/fte).toFixed(4):null,
+        conv:vis?+(re/vis).toFixed(4):null,vpp:fte?+(vb/fte).toFixed(4):null,rp_pct:vb?+(rp/vb).toFixed(4):null};
     });
   }
   function sumM(zm,n){
     const a={vis:0,vb:0,re:0,rp:0,fte:0};
     zm.slice(0,n).forEach(d=>{a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
-    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
-      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
+    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
+      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
       rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
   }
   prog(85);
@@ -577,8 +577,8 @@ function monZ(y,z){
     const a={vis:0,vb:0,re:0,rp:0,fte:0};
     ZONES.forEach(zz=>{const d=(src[zz]||[])[m]||{};a.vis+=d.vis||0;a.vb+=d.vb||0;
       a.re+=d.re||0;a.rp+=d.rp||0;a.fte+=d.fte||0;});
-    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
-      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
+    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
+      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
       rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
   });
 }
@@ -1024,13 +1024,14 @@ const D_RAW_METRICS = ['Visitas','Ventas Field','Ventas RP','Ventas RE','FTE'];
 
 // Colors per KPI for multi-line chart
 const D_KPI_CFG = [
-  {key:'vis',   label:'Visitas',       color:'#2e7fff'},
-  {key:'vf',    label:'Ventas Field',  color:'#29c99a'},
-  {key:'rp',    label:'Ventas RP',     color:'#e0a729'},
-  {key:'re',    label:'Ventas RE',     color:'#e05a5a'},
-  {key:'conv',  label:'Conversión %',  color:'#7fbcff'},
-  {key:'bpp',   label:'BPP',           color:'#56d8b2'},
-  {key:'vpp',   label:'VPP',           color:'#f5d48e'},
+  {key:'vis',   label:'Visitas',         color:'#2e7fff'},
+  {key:'vf',    label:'Ventas Field',    color:'#29c99a'},
+  {key:'rp',    label:'Ventas RP',       color:'#e0a729'},
+  {key:'re',    label:'Ventas RE',       color:'#e05a5a'},
+  {key:'conv',  label:'Conversión %',    color:'#7fbcff'},
+  {key:'bpp',   label:'BPP (Vis/FTE)',   color:'#56d8b2'},
+  {key:'vpp',   label:'VPP (Vtas/FTE)',  color:'#f5d48e'},
+  {key:'prod',  label:'Productividad',   color:'#c084fc'},
 ];
 
 function parseDailySheet(wb){
@@ -1072,10 +1073,11 @@ function dailyKPIs(zone, idx){
   const rp  = RD.raw_m['Ventas RP']?.[zone]?.[idx] || 0;
   const re  = RD.raw_m['Ventas RE']?.[zone]?.[idx] || 0;
   const fte = RD.raw_m['FTE']?.[zone]?.[idx] || 0;
-  const conv = vis>0 ? vf/vis*100 : 0;
-  const bpp  = fte>0 ? vf/fte : 0;
-  const vpp  = vis>0 ? vf/vis : 0;
-  return {vis,vf,rp,re,fte,conv,bpp,vpp};
+  const conv = vis>0 ? re/vis*100 : 0;          // Conversión = RE / Visitas
+  const bpp  = fte>0 ? vis/fte : 0;             // BPP = Visitas / FTE
+  const vpp  = fte>0 ? vf/fte : 0;              // VPP = Ventas Field / FTE
+  const prod = vis>0 ? (re+rp)/vis : 0;         // Productividad = (RE+RP) / Visitas
+  return {vis,vf,rp,re,fte,conv,bpp,vpp,prod};
 }
 
 // Parse dd/mm/yyyy → Date
@@ -1169,9 +1171,10 @@ function renderDKPICards(zone, lastIdx){
     {key:'vf',   label:'Ventas Field', fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--green)',   signed:false},
     {key:'rp',   label:'Ventas RP',    fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--amber)',   signed:false},
     {key:'re',   label:'Ventas RE',    fmt:v=>Math.round(v).toLocaleString('es'), color:'#e05a5a',        signed:false},
-    {key:'conv', label:'Conversión',   fmt:v=>v.toFixed(1)+'%',                   color:'#7fbcff',        signed:false},
-    {key:'bpp',  label:'BPP',          fmt:v=>v.toFixed(1),                       color:'#56d8b2',        signed:false},
-    {key:'vpp',  label:'VPP',          fmt:v=>v.toFixed(1),                       color:'#f5d48e',        signed:false},
+    {key:'conv', label:'Conversión',     fmt:v=>v.toFixed(1)+'%',  color:'#7fbcff'},
+    {key:'bpp',  label:'BPP (Vis/FTE)',  fmt:v=>v.toFixed(2),      color:'#56d8b2'},
+    {key:'vpp',  label:'VPP (Vtas/FTE)', fmt:v=>v.toFixed(2),      color:'#f5d48e'},
+    {key:'prod', label:'Productividad',  fmt:v=>v.toFixed(2),      color:'#c084fc'},
   ];
 
   let h = '';
@@ -1198,7 +1201,7 @@ function renderDKPICards(zone, lastIdx){
     </div>`;
   });
   el.innerHTML = h;
-  el.style.gridTemplateColumns = 'repeat(7,1fr)';
+  el.style.gridTemplateColumns = 'repeat(4,1fr)';
 }
 
 function renderDMultiLine(dates, series){
@@ -1327,7 +1330,7 @@ function buildDailyView(){
     </div>
 
     <!-- KPI summary cards -->
-    <div class="krow" id="dKPIRow" style="margin-bottom:18px;grid-template-columns:repeat(7,1fr)"></div>
+    <div class="krow" id="dKPIRow" style="margin-bottom:18px;grid-template-columns:repeat(4,1fr)"></div>
 
     <!-- Multi-line chart -->
     <div class="card full" style="margin-bottom:14px">
