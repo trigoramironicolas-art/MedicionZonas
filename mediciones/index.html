@@ -1,1 +1,1476 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mediciones de Zonas · Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Corporate palette — deep navy + electric blue + silver */
+  --bg:       #0d1117;
+  --s1:       #131923;
+  --s2:       #1a2232;
+  --bd:       #1f2d42;
+  --bd2:      #2a3d58;
+  --accent:   #2e7fff;   /* electric blue — primary action */
+  --accent2:  #5ba3ff;   /* lighter blue */
+  --silver:   #8faabf;   /* silver-slate */
+  --green:    #29c99a;   /* positive delta */
+  --red:      #e05a5a;   /* negative delta */
+  --amber:    #e0a729;   /* warning/highlight */
+  --t:        #dce8f4;   /* primary text */
+  --sub:      #6e8ca8;   /* secondary text */
+  --dim:      #344d66;   /* muted/disabled */
+  --navy:     #091428;   /* deepest navy for cards */
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;}
+code,kbd,.mono{font-family:'IBM Plex Mono',monospace;}
 
+/* ────── Upload Screen ────── */
+#up{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:1000;gap:28px;}
+.ulogo{font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:22px;
+  color:var(--t);letter-spacing:-.3px;}
+.ulogo span{color:var(--accent);}
+.ubox{border:1.5px dashed var(--bd2);border-radius:14px;padding:52px 64px;
+  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
+  background:var(--s1);max-width:460px;width:90%;}
+.ubox:hover,.ubox.drag{border-color:var(--accent);background:var(--s2);}
+.uicon{font-size:36px;margin-bottom:16px;opacity:.5;}
+.utitle{font-size:17px;font-weight:600;margin-bottom:8px;color:var(--t);}
+.usub{font-size:12px;color:var(--sub);line-height:1.8;}
+.ubtn{margin-top:20px;background:var(--accent);color:#fff;border:none;
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;
+  padding:10px 28px;border-radius:8px;cursor:pointer;transition:background .15s;}
+.ubtn:hover{background:var(--accent2);}
+.uhint{font-size:10px;color:var(--dim);margin-top:8px;}
+#fi{display:none;}
+.uerr{font-size:11px;color:var(--red);min-height:16px;}
+
+/* ────── Progress bar ────── */
+#prog{position:fixed;top:0;left:0;height:2px;background:var(--accent);
+  width:0%;transition:width .25s;z-index:2000;box-shadow:0 0 8px var(--accent);}
+
+/* ────── Header ────── */
+header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
+  gap:10px;padding:0 30px;height:54px;border-bottom:1px solid var(--bd);
+  position:sticky;top:0;z-index:100;background:rgba(13,17,23,.97);backdrop-filter:blur(16px);}
+.logo{font-size:15px;font-weight:700;color:var(--t);letter-spacing:-.2px;white-space:nowrap;}
+.logo em{color:var(--accent);font-style:normal;}
+.ctrls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.fl{font-size:9px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;
+  font-family:'IBM Plex Mono',monospace;}
+select{background:var(--s2);border:1px solid var(--bd);color:var(--t);
+  font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 9px;
+  border-radius:6px;cursor:pointer;outline:none;transition:border-color .15s;}
+select:focus,select:hover{border-color:var(--accent);}
+.sep{width:1px;height:16px;background:var(--bd);margin:0 3px;}
+.rbtn{background:transparent;border:1px solid var(--bd);color:var(--sub);
+  font-size:11px;padding:5px 11px;border-radius:6px;cursor:pointer;transition:all .15s;}
+.rbtn:hover{border-color:var(--accent2);color:var(--accent2);}
+/* Analysis toggle */
+.anlbtn{background:var(--accent);color:#fff;border:none;font-size:11px;font-weight:600;
+  padding:5px 14px;border-radius:6px;cursor:pointer;transition:background .15s;
+  display:flex;align-items:center;gap:5px;}
+.anlbtn:hover{background:var(--accent2);}
+.anlbtn.active{background:var(--amber);color:#000;}
+.ftag{font-size:10px;color:var(--dim);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.online{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--sub);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;
+  animation:pulse 2.5s infinite;}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #29c99a40}60%{box-shadow:0 0 0 5px #29c99a00}}
+
+/* ────── Dashboard shell ────── */
+#dash{display:none;}
+.shell{display:flex;min-height:calc(100vh - 54px);}
+
+/* ────── Analysis Panel ────── */
+#anlPanel{
+  width:360px;min-width:360px;border-left:1px solid var(--bd);
+  background:var(--navy);display:none;flex-direction:column;
+  overflow-y:auto;position:sticky;top:54px;height:calc(100vh - 54px);
+}
+#anlPanel.open{display:flex;}
+.apl-head{padding:18px 20px 12px;border-bottom:1px solid var(--bd);}
+.apl-title{font-size:13px;font-weight:700;color:var(--t);margin-bottom:2px;}
+.apl-sub{font-size:10px;color:var(--sub);}
+.apl-section{padding:16px 20px;border-bottom:1px solid var(--bd);}
+.apl-label{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--accent2);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
+textarea{width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--t);
+  font-family:'IBM Plex Sans',sans-serif;font-size:12px;line-height:1.6;
+  padding:10px 12px;border-radius:8px;resize:vertical;outline:none;
+  transition:border-color .15s;min-height:80px;}
+textarea:focus{border-color:var(--accent);}
+textarea::placeholder{color:var(--dim);}
+.zone-comments{display:flex;flex-direction:column;gap:8px;}
+.zc-item{background:var(--s2);border:1px solid var(--bd);border-radius:8px;overflow:hidden;}
+.zc-head{padding:8px 12px;font-size:11px;font-weight:600;color:var(--silver);
+  cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  transition:background .15s;}
+.zc-head:hover{background:var(--s1);}
+.zc-head .arr{font-size:10px;color:var(--dim);transition:transform .2s;}
+.zc-head.open .arr{transform:rotate(90deg);}
+.zc-body{display:none;padding:8px 12px;}
+.zc-body.open{display:block;}
+.zc-body textarea{min-height:60px;font-size:11px;}
+
+.save-btn{background:var(--accent);color:#fff;border:none;font-family:'IBM Plex Sans',sans-serif;
+  font-size:12px;font-weight:600;padding:9px 20px;border-radius:7px;cursor:pointer;
+  width:100%;transition:background .15s;margin-top:4px;}
+.save-btn:hover{background:var(--accent2);}
+.export-btn{background:transparent;color:var(--silver);border:1px solid var(--bd2);
+  font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px 16px;
+  border-radius:7px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s;}
+.export-btn:hover{border-color:var(--accent2);color:var(--accent2);}
+.snapshot-btn{background:var(--s2);color:var(--accent2);border:1px solid var(--accent);
+  font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;padding:8px 16px;
+  border-radius:7px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:6px;}
+.snapshot-btn:hover{background:var(--accent);color:#fff;}
+/* Snapshot viewer mode */
+.snap-banner{background:var(--accent);color:#fff;text-align:center;padding:8px 16px;
+  font-size:12px;font-weight:600;letter-spacing:.3px;}
+.snap-readonly textarea{pointer-events:none;opacity:.7;}
+.save-msg{font-size:10px;color:var(--green);text-align:center;min-height:14px;margin-top:4px;}
+
+/* Period indicator */
+.period-tag{display:inline-flex;align-items:center;gap:6px;background:var(--s2);
+  border:1px solid var(--accent);border-radius:6px;padding:4px 10px;
+  font-size:11px;font-weight:600;color:var(--accent2);font-family:'IBM Plex Mono',monospace;
+  margin-bottom:12px;}
+.period-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+/* Prev period comparison */
+.prev-peek{background:var(--s2);border:1px solid var(--bd);border-radius:8px;
+  padding:10px 12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;}
+.prev-peek:hover{border-color:var(--bd2);}
+.prev-peek-head{display:flex;justify-content:space-between;align-items:center;
+  font-size:10px;color:var(--sub);margin-bottom:0;}
+.prev-peek-head .pp-label{font-weight:600;color:var(--silver);}
+.prev-peek-head .pp-arr{transition:transform .2s;font-size:9px;}
+.prev-peek.open .pp-arr{transform:rotate(90deg);}
+.prev-peek-body{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);}
+.prev-peek.open .prev-peek-body{display:block;}
+.prev-text{font-size:11px;color:var(--sub);line-height:1.6;white-space:pre-wrap;}
+.prev-empty{font-size:10px;color:var(--dim);font-style:italic;}
+
+/* History list */
+.hist-list{display:flex;flex-direction:column;gap:6px;}
+.hist-item{background:var(--s2);border:1px solid var(--bd);border-radius:8px;
+  overflow:hidden;transition:border-color .15s;}
+.hist-item:hover{border-color:var(--bd2);}
+.hist-item-head{padding:9px 12px;display:flex;justify-content:space-between;align-items:center;
+  cursor:pointer;}
+.hist-period{font-size:11px;font-weight:600;color:var(--silver);font-family:'IBM Plex Mono',monospace;}
+.hist-date{font-size:9px;color:var(--dim);}
+.hist-body{display:none;padding:10px 12px;border-top:1px solid var(--bd);}
+.hist-body.open{display:block;}
+.hist-excerpt{font-size:11px;color:var(--sub);line-height:1.6;white-space:pre-wrap;margin-bottom:6px;}
+.hist-load-btn{font-size:10px;color:var(--accent2);background:none;border:1px solid var(--bd);
+  border-radius:5px;padding:4px 10px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
+.hist-load-btn:hover{border-color:var(--accent);color:var(--accent);}
+.hist-del-btn{font-size:10px;color:var(--red);background:none;border:none;
+  cursor:pointer;margin-left:6px;opacity:.6;}
+.hist-del-btn:hover{opacity:1;}
+.hist-empty{font-size:11px;color:var(--dim);text-align:center;padding:16px 0;font-style:italic;}
+
+/* Tab bar */
+.tab-bar{display:flex;border-bottom:1px solid var(--bd);margin-bottom:0;}
+.tab{flex:1;padding:10px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;
+  color:var(--sub);border-bottom:2px solid transparent;transition:all .15s;
+  font-family:'IBM Plex Mono',monospace;}
+.tab:hover{color:var(--t);}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent);}
+.tab-pane{display:none;} .tab-pane.active{display:block;}
+
+.kpi-comment-grid{display:flex;flex-direction:column;gap:6px;}
+.kpi-cmnt{background:var(--s2);border:1px solid var(--bd);border-radius:8px;overflow:hidden;}
+.kpi-cmnt-head{padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;color:var(--silver);}
+.kpi-cmnt-head:hover{background:var(--s1);}
+.kpi-cmnt-body{display:none;padding:8px 12px;}
+.kpi-cmnt-body.open{display:block;}
+
+
+/* ────── Main nav tabs ────── */
+.main-nav{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:22px;}
+.mnav{padding:10px 20px;font-size:12px;font-weight:600;cursor:pointer;color:var(--sub);
+  border-bottom:2px solid transparent;transition:all .15s;font-family:'IBM Plex Mono',monospace;
+  letter-spacing:.3px;}
+.mnav:hover{color:var(--t);}
+.mnav.active{color:var(--accent2);border-bottom-color:var(--accent);}
+.view{display:none;}.view.active{display:block;}
+
+/* ────── Daily view ────── */
+.daily-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:18px;}
+.dctl-label{font-size:9px;color:var(--sub);letter-spacing:1px;text-transform:uppercase;
+  font-family:'IBM Plex Mono',monospace;}
+.drange-btn{background:var(--s2);border:1px solid var(--bd);color:var(--sub);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;padding:5px 12px;
+  border-radius:6px;cursor:pointer;transition:all .15s;}
+.drange-btn:hover,.drange-btn.active{border-color:var(--accent);color:var(--accent2);background:var(--s1);}
+.dsep{width:1px;height:16px;background:var(--bd);margin:0 4px;}
+input[type=date]{background:var(--s2);border:1px solid var(--bd);color:var(--t);
+  font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 9px;
+  border-radius:6px;cursor:pointer;outline:none;transition:border-color .15s;}
+input[type=date]:focus{border-color:var(--accent);}
+.no-daily{text-align:center;padding:48px 20px;color:var(--dim);font-size:13px;line-height:1.8;}
+.no-daily strong{display:block;font-size:15px;color:var(--sub);margin-bottom:8px;}
+.h200{height:200px;}.h220{height:220px;}
+
+/* ────── Main content ────── */
+.main-wrap{flex:1;min-width:0;}
+main{padding:22px 28px;max-width:100%;}
+
+/* ────── KPI Cards ────── */
+.krow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
+.kcard{border-radius:10px;padding:18px 20px;border:1px solid var(--bd);
+  background:var(--s1);position:relative;overflow:hidden;transition:transform .16s,border-color .2s;}
+.kcard:hover{transform:translateY(-2px);border-color:var(--bd2);}
+.kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
+.ka::before{background:var(--accent);}  .kb::before{background:var(--accent2);}
+.kc::before{background:var(--green);}   .kd::before{background:var(--amber);}
+.klbl{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--sub);margin-bottom:6px;font-family:'IBM Plex Mono',monospace;}
+.kval{font-size:26px;font-weight:700;line-height:1;margin-bottom:5px;}
+.ka .kval{color:var(--accent2);}  .kb .kval{color:var(--accent2);}
+.kc .kval{color:var(--green);}    .kd .kval{color:var(--amber);}
+.kdelta{font-size:10px;color:var(--sub);}
+.dbadge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;
+  font-family:'IBM Plex Mono',monospace;}
+.dbadge.up{background:#29c99a18;color:var(--green);}
+.dbadge.dn{background:#e05a5a18;color:var(--red);}
+
+/* ────── Layout ────── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px;}
+.card.full{grid-column:1/-1;}
+.sec{font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--sub);
+  margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd);
+  text-transform:uppercase;font-family:'IBM Plex Mono',monospace;
+  display:flex;justify-content:space-between;align-items:center;}
+.cw{position:relative;}.h255{height:255px;}.h240{height:240px;}
+
+/* ────── Table ────── */
+table{width:100%;border-collapse:collapse;font-size:11px;}
+th{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim);
+  padding:6px 9px;text-align:right;border-bottom:1px solid var(--bd);
+  font-family:'IBM Plex Mono',monospace;}
+th:first-child{text-align:left;}
+td{padding:7px 9px;text-align:right;border-bottom:1px solid rgba(31,45,66,.5);
+  color:var(--sub);font-family:'IBM Plex Mono',monospace;font-size:11px;}
+td:first-child{text-align:left;color:var(--t);font-weight:500;font-family:'IBM Plex Sans',sans-serif;}
+tr:hover td{background:var(--s2);}
+tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-bottom:none;}
+.bw{display:flex;align-items:center;justify-content:flex-end;gap:6px;}
+.mb{height:3px;border-radius:2px;background:var(--accent);opacity:.4;}
+
+/* ────── Ranking ────── */
+.rl{display:flex;flex-direction:column;gap:7px;padding-top:2px;}
+.rr{display:grid;grid-template-columns:110px 1fr 68px;align-items:center;gap:8px;}
+.rn{font-size:10px;color:var(--sub);text-align:right;}
+.rbg{background:var(--s2);border-radius:3px;overflow:hidden;height:16px;}
+.rbf{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.16,1,.3,1);}
+.rv{font-size:12px;font-weight:700;color:var(--t);text-align:right;
+  font-family:'IBM Plex Mono',monospace;}
+
+@media(max-width:960px){
+  main{padding:12px;}header{padding:0 14px;}.krow{grid-template-columns:1fr 1fr;}
+  .g2{grid-template-columns:1fr;}.card.full{grid-column:1;}
+  #anlPanel{width:100%;min-width:0;height:auto;position:static;border-left:none;border-top:1px solid var(--bd);}
+  .shell{flex-direction:column;}
+}
+</style>
+</head>
+<body>
+<div id="prog"></div>
+
+<!-- ══ UPLOAD SCREEN ══════════════════════════════════════════════════════ -->
+<div id="up">
+  <div class="ulogo">Mediciones de <span>Zonas</span></div>
+  <div class="ubox" id="dz">
+    <div class="uicon">📊</div>
+    <div class="utitle">Abrí el archivo Excel</div>
+    <div class="usub">
+      Arrastrá el archivo acá, o hacé click para buscarlo.<br>
+      Compatible con el Excel original o el actualizado.<br>
+      Cada semana que actualizás el Excel, lo volvés a abrir acá.
+    </div>
+    <button class="ubtn" onclick="event.stopPropagation();document.getElementById('fi').click()">
+      Elegir archivo .xlsx
+    </button>
+    <div class="uhint">✓ Todo queda en tu computadora — nada se sube a ningún servidor</div>
+  </div>
+  <div class="uerr" id="uerr"></div>
+  <input type="file" id="fi" accept=".xlsx,.xls">
+</div>
+
+<!-- ══ DASHBOARD ══════════════════════════════════════════════════════════ -->
+<div id="dash">
+  <header>
+    <div class="logo">Mediciones de <em>Zonas</em></div>
+    <div class="ctrls">
+      <span class="fl">Año</span>
+      <select id="sY" onchange="go()">
+        <option value="2026">2026</option>
+        <option value="2025">2025</option>
+        <option value="ambos">2025 + 2026</option>
+      </select>
+      <div class="sep"></div>
+      <span class="fl">Mes</span>
+      <select id="sM" onchange="go()">
+        <option value="0">Acumulado</option>
+        <option value="1">Enero</option><option value="2">Febrero</option>
+        <option value="3">Marzo</option><option value="4">Abril</option>
+        <option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option>
+        <option value="9">Septiembre</option><option value="10">Octubre</option>
+        <option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+      <div class="sep"></div>
+      <span class="fl">Zona</span>
+      <select id="sZ" onchange="go()"><option value="TOTAL">TOTAL País</option></select>
+      <div class="sep"></div>
+      <button class="anlbtn" id="anlToggle" onclick="togglePanel()">✏ Análisis</button>
+      <div class="sep"></div>
+      <a class="rbtn" href="../index.html">← Volver</a>
+      <button class="rbtn" onclick="resetUp()">↩ Cambiar archivo</button>
+    </div>
+    <div class="online"><span class="dot"></span><span class="ftag" id="ftag"></span></div>
+  </header>
+
+  <div class="shell">
+    <!-- Main dashboard -->
+    <div class="main-wrap">
+      <main>
+        <!-- View navigation -->
+        <div class="main-nav">
+          <div class="mnav active" onclick="switchView('monthly')" id="navMonthly">Resumen Mensual</div>
+          <div class="mnav" onclick="switchView('daily')" id="navDaily">Vista Diaria</div>
+        </div>
+
+        <!-- Monthly view -->
+        <div class="view active" id="viewMonthly">
+        <div class="krow" id="krow"></div>
+        <div class="g2">
+          <div class="card">
+            <div class="sec"><span>Evolución Mensual</span>
+              <select id="sKE" onchange="renderEvol()" style="font-size:10px;padding:3px 8px;">
+                <option value="bpp">BPP</option><option value="conv">% Conversión</option>
+                <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
+                <option value="vis">Visitas</option>
+              </select>
+            </div>
+            <div class="cw h255"><canvas id="cE"></canvas></div>
+          </div>
+          <div class="card">
+            <div class="sec"><span>Ranking por Zona</span>
+              <select id="sKR" onchange="renderRank()" style="font-size:10px;padding:3px 8px;">
+                <option value="bpp">BPP</option><option value="conv">% Conversión</option>
+                <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
+                <option value="vis">Visitas</option>
+              </select>
+            </div>
+            <div class="rl" id="rl"></div>
+          </div>
+        </div>
+        <div class="card full" style="margin-bottom:14px">
+          <div class="sec"><span>Comparativo por Zona · 2025 vs 2026</span>
+            <select id="sKC" onchange="renderComp()" style="font-size:10px;padding:3px 8px;">
+              <option value="bpp">BPP</option><option value="conv">% Conversión</option>
+              <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
+              <option value="vis">Visitas</option>
+            </select>
+          </div>
+          <div class="cw h240"><canvas id="cC"></canvas></div>
+        </div>
+        <div class="card full" style="margin-bottom:32px">
+          <div class="sec">Detalle por Zona · <span id="tT"></span></div>
+          <div style="overflow-x:auto"><table id="tZ"></table></div>
+        </div>
+        </div><!-- end viewMonthly -->
+
+        <!-- Daily view -->
+        <div class="view" id="viewDaily">
+          <div id="dailyContent">
+            <div class="no-daily">
+              <strong>Vista Diaria no disponible</strong>
+              Este archivo no tiene la pestaña <code style="color:var(--accent2)">"Diario"</code>.<br>
+              Agregá esa pestaña al Excel y volvé a cargarlo.
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <!-- ANALYSIS PANEL -->
+    <div id="anlPanel">
+      <div class="apl-head">
+        <div class="apl-title">Panel de Análisis</div>
+        <div class="apl-sub" id="anlSub">Seleccioná un período para comenzar</div>
+      </div>
+      <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('write')">✏ Escribir</div>
+        <div class="tab" onclick="switchTab('hist')">🕐 Historial</div>
+      </div>
+      <div class="tab-pane active" id="tabWrite" style="overflow-y:auto;flex:1;">
+        <div class="apl-section" style="padding-bottom:8px;">
+          <div class="period-tag" id="periodTag">
+            <span class="period-dot"></span><span id="periodLabel">—</span>
+          </div>
+          <div class="prev-peek" id="prevPeek" onclick="this.classList.toggle('open')">
+            <div class="prev-peek-head">
+              <span class="pp-label" id="prevLabel">Período anterior</span>
+              <span class="pp-arr">▶</span>
+            </div>
+            <div class="prev-peek-body">
+              <div class="prev-text" id="prevText"></div>
+            </div>
+          </div>
+        </div>
+        <div class="apl-section">
+          <div class="apl-label">Resumen Ejecutivo</div>
+          <textarea id="txtResumen" rows="5" placeholder="Conclusiones principales del período..."></textarea>
+        </div>
+        <div class="apl-section">
+          <div class="apl-label">Notas Generales</div>
+          <textarea id="txtNotas" rows="3" placeholder="Contexto, factores externos, decisiones tomadas..."></textarea>
+        </div>
+        <div class="apl-section">
+          <div class="apl-label">Análisis por KPI</div>
+          <div class="kpi-comment-grid" id="kpiComments"></div>
+        </div>
+        <div class="apl-section">
+          <div class="apl-label">Comentarios por Zona</div>
+          <div class="zone-comments" id="zoneComments"></div>
+        </div>
+        <div class="apl-section">
+          <button class="save-btn" onclick="saveAnalysis()">💾 Guardar análisis</button>
+          <button class="export-btn" onclick="exportAnalysis()">↓ Exportar como .txt</button>
+          <button class="snapshot-btn" onclick="exportSnapshot()">📤 Exportar snapshot para compartir</button>
+          <div class="save-msg" id="saveMsg"></div>
+        </div>
+      </div>
+      <div class="tab-pane" id="tabHist" style="overflow-y:auto;flex:1;">
+        <div class="apl-section">
+          <div class="apl-label">Análisis guardados</div>
+          <div class="hist-list" id="histList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────
+const ZONES=['AMBA','Bahia Blanca','Córdoba','Costa+Tandil','La Plata','Mendoza',
+             'Paraná','Pinamar','Rosario','San Luis','Santa Fe','Tucuman'];
+const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+              'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const KPI_LABELS={bpp:'BPP (Ventas/FTE)',conv:'% Conversión',vpp:'VPP (Ventas/Visitas)',rp_pct:'% Ventas RP'};
+const RC=['#2e7fff','#5ba3ff','#7fbcff','#29c99a','#56d8b2','#7ae3c7',
+          '#e0a729','#ebbe60','#f5d48e','#e05a5a','#e87a7a','#f0a0a0'];
+
+let R=null,yr='2026',ms=0,zn='TOTAL',cE,cC;
+
+// ── Formatters ─────────────────────────────────────────────────────────────
+const fmt={bpp:v=>v==null?'—':v.toFixed(2),conv:v=>v==null?'—':(v*100).toFixed(1)+'%',
+  vpp:v=>v==null?'—':v.toFixed(2),rp_pct:v=>v==null?'—':(v*100).toFixed(1)+'%',
+  vis:v=>v==null?'—':Math.round(v).toLocaleString('es'),vb:v=>v==null?'—':Math.round(v).toLocaleString('es'),
+  re:v=>v==null?'—':Math.round(v).toLocaleString('es'),rp:v=>v==null?'—':Math.round(v).toLocaleString('es'),
+  fte:v=>v==null?'—':v.toFixed(1)};
+const isPct=k=>['conv','rp_pct'].includes(k);
+const isInt=k=>['vis','vb','re','rp'].includes(k);
+const fmtAx=(k,v)=>isPct(k)?(v*100).toFixed(0)+'%':isInt(k)?v.toLocaleString('es'):v.toFixed(2);
+const fmtTp=(k,v)=>v==null?null:isPct(k)?(v*100).toFixed(1)+'%':isInt(k)?Math.round(v).toLocaleString('es'):v.toFixed(2);
+
+// ── Progress ──────────────────────────────────────────────────────────────
+const bar=document.getElementById('prog');
+function prog(p){bar.style.width=p+'%';}
+
+// ── Excel Parsing ─────────────────────────────────────────────────────────
+function readSection(ws,startRow,nRows=12){
+  const data={};
+  for(let i=0;i<nRows;i++){
+    const r=startRow+i;
+    const zc=ws[XLSX.utils.encode_cell({r:r-1,c:0})];
+    if(zc?.v&&ZONES.includes(zc.v)){
+      data[zc.v]=Array.from({length:12},(_,m)=>{
+        const cell=ws[XLSX.utils.encode_cell({r:r-1,c:m+1})];
+        return cell?parseFloat(cell.v)||0:0;
+      });
+    }
+  }
+  return data;
+}
+
+function parseExcel(wb){
+  prog(20);
+  const sh=wb.SheetNames;
+  if(!sh.includes("Informacion (Act)"))
+    throw new Error("No se encontró la pestaña 'Informacion (Act)'. ¿Es el archivo correcto?");
+  prog(35);
+  const ws26=wb.Sheets["Informacion (Act)"];
+  const k26={Visitas:readSection(ws26,3),VentasB:readSection(ws26,18),
+    VentasRP:readSection(ws26,34),VentasRE:readSection(ws26,50),FTE:readSection(ws26,66)};
+  prog(55);
+  let k25;
+  if(sh.includes("Informacion 2025")){
+    const w=wb.Sheets["Informacion 2025"];
+    k25={Visitas:readSection(w,3),VentasB:readSection(w,18),
+      VentasRP:readSection(w,34),VentasRE:readSection(w,50),FTE:readSection(w,66)};
+  } else if(sh.includes("2025")){
+    const w=wb.Sheets["2025"];
+    k25={Visitas:readSection(w,7,12),VentasB:readSection(w,61,12),
+      VentasRE:readSection(w,89,12),VentasRP:readSection(w,75,12),FTE:readSection(w,48,12)};
+  } else {
+    k25={Visitas:{},VentasB:{},VentasRP:{},VentasRE:{},FTE:{}};
+  }
+  prog(70);
+  let n26=0;
+  for(let m=0;m<12;m++){if(ZONES.reduce((s,z)=>s+(k26.Visitas[z]?.[m]||0),0)>0)n26=m+1;}
+  function buildM(k,zone,nM){
+    return Array.from({length:nM},(_,m)=>{
+      const vis=k.Visitas[zone]?.[m]||0,vb=k.VentasB[zone]?.[m]||0;
+      const re=k.VentasRE[zone]?.[m]||0,rp=k.VentasRP[zone]?.[m]||0,fte=k.FTE[zone]?.[m]||0;
+      return{vis,vb,re,rp,fte:+fte.toFixed(4),bpp:fte?+(vb/fte).toFixed(4):null,
+        conv:vis?+(re/vis).toFixed(4):null,vpp:vis?+(vb/vis).toFixed(4):null,rp_pct:vb?+(rp/vb).toFixed(4):null};
+    });
+  }
+  function sumM(zm,n){
+    const a={vis:0,vb:0,re:0,rp:0,fte:0};
+    zm.slice(0,n).forEach(d=>{a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
+    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
+      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
+      rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
+  }
+  prog(85);
+  const out={n26,m26:MONTHS.slice(0,n26),zm25:{},zm26:{},zt25:{},zt26:{}};
+  ZONES.forEach(z=>{
+    out.zm25[z]=buildM(k25,z,12);out.zm26[z]=buildM(k26,z,n26);
+    out.zt25[z]=sumM(out.zm25[z],12);out.zt26[z]=sumM(out.zm26[z],n26);
+  });
+  prog(100);
+  return out;
+}
+
+// ── Data helpers ──────────────────────────────────────────────────────────
+function totZ(y,z){
+  const src=y==='2025'?R.zt25:R.zt26;
+  if(z!=='TOTAL')return src[z];
+  const a={vis:0,vb:0,re:0,rp:0,fte:0};
+  ZONES.forEach(zz=>{const d=src[zz];a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
+  return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
+    conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
+    rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
+}
+function monZ(y,z){
+  const src=y==='2025'?R.zm25:R.zm26,nM=y==='2025'?12:R.n26;
+  if(z!=='TOTAL')return src[z]||[];
+  return Array.from({length:nM},(_,m)=>{
+    const a={vis:0,vb:0,re:0,rp:0,fte:0};
+    ZONES.forEach(zz=>{const d=(src[zz]||[])[m]||{};a.vis+=d.vis||0;a.vb+=d.vb||0;
+      a.re+=d.re||0;a.rp+=d.rp||0;a.fte+=d.fte||0;});
+    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
+      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
+      rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
+  });
+}
+function getV(y,z,k){
+  if(ms===0)return totZ(y,z)[k];
+  const nM=y==='2025'?12:R.n26;
+  if(ms>nM)return null;
+  return(monZ(y,z)[ms-1]||{})[k]??null;
+}
+function aggK(monthly,k,n){
+  const nk={bpp:'vb',conv:'re',vpp:'vb',rp_pct:'rp'}[k],dk={bpp:'fte',conv:'vis',vpp:'vis',rp_pct:'vb'}[k];
+  if(nk){let num=0,den=0;monthly.slice(0,n).forEach(d=>{if(d){num+=d[nk]||0;den+=d[dk]||0;}});return den?+(num/den).toFixed(4):null;}
+  return monthly.slice(0,n).reduce((s,d)=>s+(d?d[k]||0:0),0);
+}
+function delt(c,p){
+  if(c==null||p==null||p===0)return'';
+  const pct=((c-p)/Math.abs(p)*100).toFixed(1),up=parseFloat(pct)>=0;
+  return`<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>`;
+}
+
+// ── Chart options ─────────────────────────────────────────────────────────
+function chartOpts(k){
+  return{responsive:true,maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{color:'#6e8ca8',font:{family:"'IBM Plex Mono'",size:10},boxWidth:10}},
+      tooltip:{backgroundColor:'#13192380',borderColor:'#1f2d42',borderWidth:1,
+        titleColor:'#6e8ca8',bodyColor:'#dce8f4',
+        bodyFont:{family:"'IBM Plex Mono'",size:11},
+        callbacks:{label:c=>{const v=c.raw;if(v==null)return null;return` ${fmtTp(k,v)}`;}}
+      }
+    },
+    scales:{
+      x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9}}},
+      y:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:10},
+        callback:v=>fmtAx(k,v)}}
+    }};
+}
+
+// ── Render: KPI Cards ─────────────────────────────────────────────────────
+function renderKPIs(){
+  const cards=[{k:'bpp',l:'BPP',c:'ka'},{k:'conv',l:'% CONVERSIÓN',c:'kb'},
+               {k:'vpp',l:'VPP',c:'kc'},{k:'rp_pct',l:'% VENTAS RP',c:'kd'}];
+  const y=yr==='ambos'?'2026':yr;
+  document.getElementById('krow').innerHTML=cards.map(cc=>{
+    const v=getV(y,zn,cc.k);let dH='';
+    if(y==='2026'){
+      const m26=monZ('2026',zn),m25=monZ('2025',zn);
+      if(ms===0){
+        const a26=aggK(m26,cc.k,R.n26),a25=aggK(m25.slice(0,R.n26),cc.k,R.n26);
+        dH=delt(a26,a25)+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
+      } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k));}
+    }
+    return`<div class="kcard ${cc.c}"><div class="klbl">${cc.l}</div>
+      <div class="kval">${fmt[cc.k](v)}</div>
+      <div class="kdelta">${dH||'&nbsp;'}</div></div>`;
+  }).join('');
+}
+
+// ── Render: Evolution ────────────────────────────────────────────────────
+function renderEvol(){
+  const k=document.getElementById('sKE').value;
+  if(cE)cE.destroy();
+  const ctx=document.getElementById('cE').getContext('2d');
+  let labels,datasets=[];
+  if(yr==='ambos'){
+    labels=[...MONTHS,...R.m26.map(m=>m.slice(0,3)+"'26")];
+    const s25=monZ('2025',zn).map(d=>d[k]??null);
+    const s26=[...monZ('2026',zn).map(d=>d[k]??null),...Array(12-R.n26).fill(null)];
+    datasets=[
+      {label:'2025',data:s25,borderColor:'#5ba3ff',backgroundColor:'#5ba3ff12',borderWidth:1.5,pointRadius:3,tension:.4,fill:false},
+      {label:'2026',data:s26,borderColor:'#2e7fff',backgroundColor:'#2e7fff20',borderWidth:2,pointRadius:3,tension:.4,fill:false}
+    ];
+  } else {
+    labels=yr==='2025'?MONTHS:R.m26;
+    datasets=[{label:yr,data:monZ(yr,zn).map(d=>d[k]??null),
+      borderColor:'#2e7fff',backgroundColor:'#2e7fff15',borderWidth:2,pointRadius:3,tension:.4,fill:true}];
+  }
+  const opts=chartOpts(k);opts.plugins.legend.display=yr==='ambos';
+  cE=new Chart(ctx,{type:'line',data:{labels,datasets},options:opts});
+}
+
+// ── Render: Comparison ───────────────────────────────────────────────────
+function renderComp(){
+  const k=document.getElementById('sKC').value;
+  if(cC)cC.destroy();
+  const ctx=document.getElementById('cC').getContext('2d');
+  const opts=chartOpts(k);
+  opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp(k,c.raw)}`};
+  opts.plugins.legend.display=true;
+  cC=new Chart(ctx,{type:'bar',data:{labels:ZONES,datasets:[
+    {label:'2025',data:ZONES.map(z=>getV('2025',z,k)),backgroundColor:'#5ba3ff55',borderColor:'#5ba3ff',borderWidth:1,borderRadius:4},
+    {label:'2026',data:ZONES.map(z=>getV('2026',z,k)),backgroundColor:'#2e7fff99',borderColor:'#2e7fff',borderWidth:1,borderRadius:4}
+  ]},options:opts});
+}
+
+// ── Render: Ranking ──────────────────────────────────────────────────────
+function renderRank(){
+  const k=document.getElementById('sKR').value,y=yr==='ambos'?'2026':yr;
+  const sorted=[...ZONES].map(z=>({z,v:getV(y,z,k)})).filter(x=>x.v!=null).sort((a,b)=>b.v-a.v);
+  const max=sorted[0]?.v||1;
+  document.getElementById('rl').innerHTML=sorted.map((x,i)=>`
+    <div class="rr"><div class="rn">${x.z}</div>
+    <div class="rbg"><div class="rbf" style="width:${(x.v/max*100).toFixed(1)}%;background:${RC[i]||'#2e7fff'}"></div></div>
+    <div class="rv">${fmt[k](x.v)}</div></div>`).join('');
+}
+
+// ── Render: Table ────────────────────────────────────────────────────────
+function renderTable(){
+  const y=yr==='ambos'?'2026':yr,yp=y==='2026'?'2025':null;
+  const mn=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('tT').textContent=`${yr==='ambos'?'2025+2026':yr}${ms>0?' · '+mn[ms]:''}`;
+  const sorted=[...ZONES].sort((a,b)=>(getV(y,b,'vis')||0)-(getV(y,a,'vis')||0));
+  const maxV=Math.max(...sorted.map(z=>getV(y,z,'vis')||0));
+  let h=`<thead><tr><th>Zona</th><th>Visitas</th><th>FTE</th><th>V.Brutas</th><th>V.RE</th><th>V.RP</th>
+    <th>BPP</th>${yp?`<th>BPP '25</th><th>Δ</th>`:''}
+    <th>% Conv.</th>${yp?`<th>Conv '25</th><th>Δ</th>`:''}
+    <th>VPP</th><th>% RP</th></tr></thead><tbody>`;
+  for(const z of sorted){
+    const d={vis:getV(y,z,'vis'),vb:getV(y,z,'vb'),re:getV(y,z,'re'),rp:getV(y,z,'rp'),fte:getV(y,z,'fte'),
+      bpp:getV(y,z,'bpp'),conv:getV(y,z,'conv'),vpp:getV(y,z,'vpp'),rp_pct:getV(y,z,'rp_pct')};
+    const dp=yp?{bpp:getV(yp,z,'bpp'),conv:getV(yp,z,'conv')}:null;
+    const bw=d.vis?Math.round(d.vis/maxV*46):0;
+    h+=`<tr><td>${z}</td>
+      <td><div class="bw"><div class="mb" style="width:${bw}px"></div>${fmt.vis(d.vis)}</div></td>
+      <td>${fmt.fte(d.fte)}</td><td>${fmt.vb(d.vb)}</td><td>${fmt.re(d.re)}</td><td>${fmt.rp(d.rp)}</td>
+      <td>${fmt.bpp(d.bpp)}</td>${dp?`<td style="color:var(--dim)">${fmt.bpp(dp.bpp)}</td><td>${delt(d.bpp,dp.bpp)}</td>`:''}
+      <td>${fmt.conv(d.conv)}</td>${dp?`<td style="color:var(--dim)">${fmt.conv(dp.conv)}</td><td>${delt(d.conv,dp.conv)}</td>`:''}
+      <td>${fmt.vpp(d.vpp)}</td><td>${fmt.rp_pct(d.rp_pct)}</td></tr>`;
+  }
+  const tt={vis:0,vb:0,re:0,rp:0,fte:0};
+  ZONES.forEach(z=>{tt.vis+=getV(y,z,'vis')||0;tt.vb+=getV(y,z,'vb')||0;
+    tt.re+=getV(y,z,'re')||0;tt.rp+=getV(y,z,'rp')||0;tt.fte+=getV(y,z,'fte')||0;});
+  tt.bpp=tt.fte?tt.vb/tt.fte:null;tt.conv=tt.vis?tt.re/tt.vis:null;
+  tt.vpp=tt.vis?tt.vb/tt.vis:null;tt.rp_pct=tt.vb?tt.rp/tt.vb:null;
+  h+=`<tr class="ttot"><td>TOTAL</td><td>${fmt.vis(tt.vis)}</td><td>${fmt.fte(tt.fte)}</td>
+    <td>${fmt.vb(tt.vb)}</td><td>${fmt.re(tt.re)}</td><td>${fmt.rp(tt.rp)}</td>
+    <td>${fmt.bpp(tt.bpp)}</td>${yp?'<td></td><td></td>':''}
+    <td>${fmt.conv(tt.conv)}</td>${yp?'<td></td><td></td>':''}
+    <td>${fmt.vpp(tt.vpp)}</td><td>${fmt.rp_pct(tt.rp_pct)}</td></tr></tbody>`;
+  document.getElementById('tZ').innerHTML=h;
+}
+
+// ── Main trigger ─────────────────────────────────────────────────────────
+function go(){
+  yr=document.getElementById('sY').value;ms=+document.getElementById('sM').value;
+  zn=document.getElementById('sZ').value;
+  Array.from(document.getElementById('sM').options).forEach(o=>{
+    const m=+o.value;o.disabled=(yr==='2026'&&m>R.n26&&m>0);
+    o.style.color=o.disabled?'var(--dim)':'';
+  });
+  if(yr==='2026'&&ms>R.n26){document.getElementById('sM').value='0';ms=0;}
+  renderKPIs();renderEvol();renderComp();renderRank();renderTable();
+  // Refresh analysis panel if open
+  if(R && document.getElementById('anlPanel').classList.contains('open')){
+    refreshPanelForPeriod();
+  }
+}
+
+// ── Analysis Panel (with history) ────────────────────────────────────────
+const HIST_KEY = 'mz_analysis_history_v2'; // key → array of saved entries
+
+// Each entry: { periodKey, periodLabel, resumen, notas, kpi:{}, zones:{}, savedAt }
+
+function periodKey(){
+  // Unique key for current filter combo: "2026_3_TOTAL" etc.
+  return `${yr}_${ms}_${zn}`;
+}
+function periodLabel(){
+  const mn=['Acumulado','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const zona = zn==='TOTAL'?'Total País':zn;
+  return `${yr==='ambos'?'2025+2026':yr} · ${mn[ms]} · ${zona}`;
+}
+function prevPeriodKey(){
+  // Previous = one month back, same year. If month 0 (acum), previous year acum.
+  if(ms===0) return `${parseInt(yr)-1}_0_${zn}`;
+  if(ms===1) return `${parseInt(yr)-1}_12_${zn}`; // Dec prev year
+  return `${yr}_${ms-1}_${zn}`;
+}
+function prevPeriodLabel(){
+  const mn=['Acumulado','Enero','Febrero','Marzo','Abril','Mayo','Junio',
+            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const {yr:py,ms:pm}=(()=>{
+    if(ms===0)return{yr:parseInt(yr)-1,ms:0};
+    if(ms===1)return{yr:parseInt(yr)-1,ms:12};
+    return{yr,ms:ms-1};
+  })();
+  const zona=zn==='TOTAL'?'Total País':zn;
+  return `${py} · ${mn[pm]} · ${zona}`;
+}
+
+function getHistory(){
+  try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}
+  catch{return[];}
+}
+function saveHistory(arr){
+  try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}
+  catch(e){console.warn('Could not save history:',e);}
+}
+function getEntryForPeriod(key){
+  return getHistory().find(e=>e.periodKey===key)||null;
+}
+
+function zId(z){return z.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'X');}
+
+function buildAnalysisPanel(){
+  const kpiKeys=['bpp','conv','vpp','rp_pct'];
+  document.getElementById('kpiComments').innerHTML=kpiKeys.map(k=>`
+    <div class="kpi-cmnt">
+      <div class="kpi-cmnt-head" onclick="toggleAccordion('kpiBody_${k}',this)">
+        ${KPI_LABELS[k]} <span class="arr">▶</span>
+      </div>
+      <div class="kpi-cmnt-body" id="kpiBody_${k}">
+        <textarea id="kpiTxt_${k}" rows="3" placeholder="Análisis de ${KPI_LABELS[k]}..."></textarea>
+      </div>
+    </div>`).join('');
+
+  document.getElementById('zoneComments').innerHTML=ZONES.map(z=>`
+    <div class="zc-item">
+      <div class="zc-head" onclick="toggleAccordion('zBody_${zId(z)}',this)">
+        ${z} <span class="arr">▶</span>
+      </div>
+      <div class="zc-body" id="zBody_${zId(z)}">
+        <textarea id="zTxt_${zId(z)}" rows="3" placeholder="Comentario sobre ${z}..."></textarea>
+      </div>
+    </div>`).join('');
+
+  refreshPanelForPeriod();
+}
+
+function toggleAccordion(bodyId, head){
+  const body=document.getElementById(bodyId);
+  body.classList.toggle('open');
+  head.querySelector('.arr').textContent=body.classList.contains('open')?'▼':'▶';
+}
+
+function refreshPanelForPeriod(){
+  // Update period label
+  document.getElementById('periodLabel').textContent=periodLabel();
+  document.getElementById('anlSub').textContent='Guardado por período · historial completo';
+
+  // Load current period data into fields
+  const entry=getEntryForPeriod(periodKey());
+  clearFields();
+  if(entry) fillFields(entry);
+
+  // Show previous period peek
+  const prevKey=prevPeriodKey();
+  const prevEntry=getEntryForPeriod(prevKey);
+  const peek=document.getElementById('prevPeek');
+  document.getElementById('prevLabel').textContent=`◀ ${prevPeriodLabel()}`;
+  if(prevEntry&&prevEntry.resumen){
+    document.getElementById('prevText').innerHTML=
+      `<strong style="color:var(--silver);font-size:10px;">Resumen:</strong><br>${escHtml(prevEntry.resumen)}`+
+      (prevEntry.notas?`<br><br><strong style="color:var(--silver);font-size:10px;">Notas:</strong><br>${escHtml(prevEntry.notas)}`:'');
+    peek.style.display='block';
+  } else {
+    document.getElementById('prevText').innerHTML=`<span class="prev-empty">Sin análisis guardado para ese período.</span>`;
+    peek.style.display='block';
+  }
+
+  renderHistory();
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function clearFields(){
+  document.getElementById('txtResumen').value='';
+  document.getElementById('txtNotas').value='';
+  ['bpp','conv','vpp','rp_pct'].forEach(k=>{
+    const el=document.getElementById('kpiTxt_'+k);if(el)el.value='';
+  });
+  ZONES.forEach(z=>{const el=document.getElementById('zTxt_'+zId(z));if(el)el.value='';});
+}
+
+function fillFields(entry){
+  if(entry.resumen)document.getElementById('txtResumen').value=entry.resumen;
+  if(entry.notas)document.getElementById('txtNotas').value=entry.notas;
+  if(entry.kpi)Object.entries(entry.kpi).forEach(([k,v])=>{
+    const el=document.getElementById('kpiTxt_'+k);if(el)el.value=v;
+  });
+  if(entry.zones)Object.entries(entry.zones).forEach(([z,v])=>{
+    const el=document.getElementById('zTxt_'+zId(z));if(el)el.value=v;
+  });
+}
+
+function getCurrentData(){
+  const kpi={};
+  ['bpp','conv','vpp','rp_pct'].forEach(k=>{kpi[k]=document.getElementById('kpiTxt_'+k)?.value||'';});
+  const zones={};
+  ZONES.forEach(z=>{zones[z]=document.getElementById('zTxt_'+zId(z))?.value||'';});
+  return{
+    periodKey:periodKey(), periodLabel:periodLabel(),
+    resumen:document.getElementById('txtResumen').value,
+    notas:document.getElementById('txtNotas').value,
+    kpi, zones,
+    savedAt:new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
+  };
+}
+
+function saveAnalysis(){
+  const data=getCurrentData();
+  const hist=getHistory().filter(e=>e.periodKey!==data.periodKey); // remove old for same period
+  hist.unshift(data); // most recent first
+  saveHistory(hist.slice(0,50)); // keep max 50 entries
+  renderHistory();
+  const msg=document.getElementById('saveMsg');
+  msg.textContent='✓ Guardado — '+data.periodLabel;
+  setTimeout(()=>msg.textContent='',3000);
+}
+
+function renderHistory(){
+  const hist=getHistory();
+  const el=document.getElementById('histList');
+  if(!hist.length){
+    el.innerHTML='<div class="hist-empty">Todavía no hay análisis guardados.<br>Escribí algo y guardalo para verlo acá.</div>';
+    return;
+  }
+  el.innerHTML=hist.map((e,i)=>{
+    const excerpt=(e.resumen||e.notas||Object.values(e.kpi||{}).find(v=>v)||'Sin contenido').slice(0,120);
+    return`<div class="hist-item">
+      <div class="hist-item-head" onclick="toggleAccordion('histBody_${i}',this)">
+        <div>
+          <div class="hist-period">${escHtml(e.periodLabel)}</div>
+          <div class="hist-date">${e.savedAt}</div>
+        </div>
+        <span class="arr" style="color:var(--dim);font-size:10px;">▶</span>
+      </div>
+      <div class="hist-body" id="histBody_${i}">
+        <div class="hist-excerpt">${escHtml(excerpt)}${e.resumen&&e.resumen.length>120?'…':''}</div>
+        <div style="display:flex;gap:6px;margin-top:4px;">
+          <button class="hist-load-btn" onclick="loadFromHistory(${i})">↩ Cargar en panel</button>
+          <button class="hist-del-btn" onclick="deleteFromHistory(${i})">✕ Borrar</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function loadFromHistory(i){
+  const entry=getHistory()[i];
+  if(!entry)return;
+  fillFields(entry);
+  switchTab('write');
+  document.getElementById('saveMsg').textContent='↩ Análisis cargado desde historial';
+  setTimeout(()=>document.getElementById('saveMsg').textContent='',2500);
+}
+
+function deleteFromHistory(i){
+  if(!confirm('¿Borrar este análisis?'))return;
+  const hist=getHistory();
+  hist.splice(i,1);
+  saveHistory(hist);
+  renderHistory();
+}
+
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['write','hist'][i]===tab));
+  document.getElementById('tabWrite').classList.toggle('active',tab==='write');
+  document.getElementById('tabHist').classList.toggle('active',tab==='hist');
+  if(tab==='hist')renderHistory();
+}
+
+function togglePanel(){
+  const panel=document.getElementById('anlPanel');
+  const btn=document.getElementById('anlToggle');
+  panel.classList.toggle('open');
+  btn.classList.toggle('active');
+  btn.textContent=panel.classList.contains('open')?'✕ Cerrar análisis':'✏ Análisis';
+}
+
+function exportAnalysis(){
+  const d=getCurrentData();
+  const lines=[
+    'MEDICIONES DE ZONAS — ANÁLISIS',
+    '='.repeat(50),
+    `Período: ${d.periodLabel}`,
+    `Guardado: ${d.savedAt}`,
+    '',
+    '── RESUMEN EJECUTIVO ──────────────────────────────',
+    d.resumen||'(sin contenido)',
+    '',
+    '── NOTAS GENERALES ────────────────────────────────',
+    d.notas||'(sin contenido)',
+    '',
+    '── ANÁLISIS POR KPI ───────────────────────────────',
+  ];
+  Object.entries(d.kpi).forEach(([k,v])=>{if(v){lines.push('');lines.push(KPI_LABELS[k]+':');lines.push(v);}});
+  lines.push('','── COMENTARIOS POR ZONA ───────────────────────────');
+  Object.entries(d.zones).forEach(([z,v])=>{if(v){lines.push('');lines.push(z+':');lines.push(v);}});
+  const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`analisis_mz_${d.periodKey}.txt`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+
+// ── Daily View ────────────────────────────────────────────────────────────
+let RD = null;
+let dRange = 30, cDayMulti = null, dCmpMode = 'yday';
+
+function setCmp(mode){
+  dCmpMode = mode;
+  document.getElementById('cmpYday')?.classList.toggle('active', mode==='yday');
+  document.getElementById('cmpWow')?.classList.toggle('active', mode==='wow');
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  renderDKPICards(zone, getDayPickIdx());
+}
+
+function getDayPickIdx(){
+  const sel = document.getElementById('dDayPick');
+  return sel ? +sel.value : lastDataIdxForZone(document.getElementById('dZone')?.value||'TOTAL');
+}
+
+function populateDayPicker(lastIdx){
+  const sel = document.getElementById('dDayPick');
+  if(!sel) return;
+  sel.innerHTML = '';
+  // Show last 30 days with data, most recent first
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  const vis = RD.raw_m['Visitas']?.[zone] || [];
+  const vf  = RD.raw_m['Ventas Field']?.[zone] || [];
+  let count = 0;
+  for(let i=lastIdx; i>=0 && count<30; i--){
+    if((vis[i]||0)>0 || (vf[i]||0)>0){
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = fullDateLabel(RD.dates[i]);
+      if(i===lastIdx) opt.selected = true;
+      sel.appendChild(opt);
+      count++;
+    }
+  }
+}
+
+const DAILY_METRIC_ROWS = {
+  'Visitas':6,'Ventas Field':19,'Ventas Netas Field':33,
+  'Ventas Netas RP':47,'FTE':61,'Ventas RP':74,'Ventas RE':88
+};
+const D_RAW_METRICS = ['Visitas','Ventas Field','Ventas RP','Ventas RE','FTE'];
+
+// Colors per KPI for multi-line chart
+const D_KPI_CFG = [
+  {key:'vis',   label:'Visitas',       color:'#2e7fff'},
+  {key:'vf',    label:'Ventas Field',  color:'#29c99a'},
+  {key:'rp',    label:'Ventas RP',     color:'#e0a729'},
+  {key:'re',    label:'Ventas RE',     color:'#e05a5a'},
+  {key:'conv',  label:'Conversión %',  color:'#7fbcff'},
+  {key:'bpp',   label:'BPP',           color:'#56d8b2'},
+  {key:'vpp',   label:'VPP',           color:'#f5d48e'},
+];
+
+function parseDailySheet(wb){
+  if(!wb.SheetNames.includes('Diario')) return null;
+  const ws = wb.Sheets['Diario'];
+  const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+
+  // Row 5 (idx 4) = dates
+  const dateRow = raw[4] || [];
+  const dates = [], colIdx = [];
+  for(let ci=1; ci<dateRow.length; ci++){
+    const v = dateRow[ci];
+    if(v && typeof v==='string' && v.match(/\d{2}\/\d{2}\/\d{4}/)){
+      dates.push(v); colIdx.push(ci);
+    }
+  }
+
+  const raw_m = {};
+  Object.entries(DAILY_METRIC_ROWS).forEach(([metric, startRow]) => {
+    raw_m[metric] = {};
+    for(let zi=0;zi<12;zi++){
+      const row = raw[startRow+zi]||[];
+      const zone = row[0];
+      if(zone && ZONES.includes(zone))
+        raw_m[metric][zone] = colIdx.map(ci => parseFloat(row[ci])||0);
+    }
+    raw_m[metric]['TOTAL'] = colIdx.map((_,di) =>
+      ZONES.reduce((s,z) => s+(raw_m[metric][z]?.[di]||0), 0)
+    );
+  });
+
+  return { dates, raw_m };
+}
+
+// For a zone+day, compute all KPIs
+function dailyKPIs(zone, idx){
+  const vis = RD.raw_m['Visitas']?.[zone]?.[idx] || 0;
+  const vf  = RD.raw_m['Ventas Field']?.[zone]?.[idx] || 0;
+  const rp  = RD.raw_m['Ventas RP']?.[zone]?.[idx] || 0;
+  const re  = RD.raw_m['Ventas RE']?.[zone]?.[idx] || 0;
+  const fte = RD.raw_m['FTE']?.[zone]?.[idx] || 0;
+  const conv = vis>0 ? vf/vis*100 : 0;
+  const bpp  = fte>0 ? vf/fte : 0;
+  const vpp  = vis>0 ? vf/vis : 0;
+  return {vis,vf,rp,re,fte,conv,bpp,vpp};
+}
+
+// Parse dd/mm/yyyy → Date
+function parseDate(s){ const [d,m,y]=s.split('/'); return new Date(+y,+m-1,+d); }
+
+// Day name in Spanish
+const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function dayLabel(dateStr){ return DIAS[parseDate(dateStr).getDay()]; }
+
+// dd/mm → display
+function shortDate(dateStr){ return dateStr.slice(0,5); }
+
+// Full label: "Mar 10/03"
+function fullDateLabel(dateStr){ return dayLabel(dateStr)+' '+shortDate(dateStr); }
+
+// Find index 7 days before a given index (same weekday)
+function idxSameWeekdayBefore(idx){
+  const target = parseDate(RD.dates[idx]).getDay();
+  for(let i=idx-1; i>=0; i--){
+    if(parseDate(RD.dates[i]).getDay() === target) return i;
+  }
+  return idx-1; // fallback to previous day
+}
+
+function lastDataIdxForZone(zone){
+  // Last index where Visitas OR Ventas Field has data > 0
+  const vis = RD.raw_m['Visitas']?.[zone] || [];
+  const vf  = RD.raw_m['Ventas Field']?.[zone] || [];
+  for(let i=vis.length-1;i>=0;i--){
+    if((vis[i]||0)>0 || (vf[i]||0)>0) return i;
+  }
+  return -1;
+}
+
+function switchView(v){
+  document.getElementById('viewMonthly').classList.toggle('active', v==='monthly');
+  document.getElementById('viewDaily').classList.toggle('active', v==='daily');
+  document.getElementById('navMonthly').classList.toggle('active', v==='monthly');
+  document.getElementById('navDaily').classList.toggle('active', v==='daily');
+  if(v==='daily' && RD) renderDaily();
+}
+
+function setDRange(n){
+  dRange = n;
+  document.querySelectorAll('.drange-btn').forEach(b=>b.classList.toggle('active',+b.dataset.n===n));
+  renderDaily();
+}
+
+function renderDaily(){
+  if(!RD) return;
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  const lastIdx = lastDataIdxForZone(zone);
+  if(lastIdx < 0) return;
+
+  // Trim to last real data, then slice N
+  const totalDates = RD.dates.slice(0, lastIdx+1);
+  const n = dRange===0 ? totalDates.length : Math.min(dRange, totalDates.length);
+  const dates = totalDates.slice(-n);
+  const startI = lastIdx - n + 1;
+
+  // Build KPI series over that window
+  const series = {};
+  D_KPI_CFG.forEach(k => series[k.key] = []);
+  for(let i=startI; i<=lastIdx; i++){
+    const kp = dailyKPIs(zone, i);
+    D_KPI_CFG.forEach(k => series[k.key].push(kp[k.key]));
+  }
+
+  populateDayPicker(lastIdx);
+  renderDKPICards(zone, getDayPickIdx());
+  renderDMultiLine(dates, series);
+  renderDTable(dates, series, zone, startI);
+}
+
+function renderDKPICards(zone, lastIdx){
+  const el = document.getElementById('dKPIRow');
+  if(!el) return;
+
+  // Comparison index depends on mode
+  const cmpIdx = dCmpMode === 'wow'
+    ? idxSameWeekdayBefore(lastIdx)
+    : (lastIdx > 0 ? lastIdx - 1 : -1);
+  const kpHoy = dailyKPIs(zone, lastIdx);
+  const kpWow = cmpIdx >= 0 ? dailyKPIs(zone, cmpIdx) : null;
+  const fechaHoy = RD.dates[lastIdx] || '';
+  const fechaWow = cmpIdx >= 0 ? RD.dates[cmpIdx] : '';
+  const cmpLabel = dCmpMode === 'wow' ? 'WoW' : 'ant';
+
+  const CARDS = [
+    {key:'vis',  label:'Visitas',      fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--accent2)', signed:false},
+    {key:'vf',   label:'Ventas Field', fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--green)',   signed:false},
+    {key:'rp',   label:'Ventas RP',    fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--amber)',   signed:false},
+    {key:'re',   label:'Ventas RE',    fmt:v=>Math.round(v).toLocaleString('es'), color:'#e05a5a',        signed:false},
+    {key:'conv', label:'Conversión',   fmt:v=>v.toFixed(1)+'%',                   color:'#7fbcff',        signed:false},
+    {key:'bpp',  label:'BPP',          fmt:v=>v.toFixed(1),                       color:'#56d8b2',        signed:false},
+    {key:'vpp',  label:'VPP',          fmt:v=>v.toFixed(1),                       color:'#f5d48e',        signed:false},
+  ];
+
+  let h = '';
+  CARDS.forEach(({key,label,fmt,color})=>{
+    const hoy = kpHoy[key] || 0;
+    const wow = kpWow?.[key] || 0;
+    // Delta: for negative values, improvement = moving toward 0 (less negative = up)
+    let dv = null, up = false;
+    if(kpWow && wow !== 0){
+      dv = (hoy - wow) / Math.abs(wow) * 100;
+      // "up" means improvement: for positive metrics higher=better, for negatives closer to 0 = better
+      up = hoy >= 0 ? dv >= 0 : hoy > wow; // if both negative, higher (less negative) is better
+    }
+    const badge = dv !== null
+      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
+      : '';
+    h += `<div class="kcard" style="min-width:0">
+      <div class="klbl">${label}</div>
+      <div class="kval" style="color:${color};font-size:20px;line-height:1.1">${fmt(hoy)}</div>
+      <div class="kdelta">${badge} vs ${fmt(wow)}</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">
+        ${fullDateLabel(fechaHoy)} · ${cmpLabel}: ${fechaWow ? fullDateLabel(fechaWow) : '—'}
+      </div>
+    </div>`;
+  });
+  el.innerHTML = h;
+  el.style.gridTemplateColumns = 'repeat(7,1fr)';
+}
+
+function renderDMultiLine(dates, series){
+  const ctx = document.getElementById('cDayMulti')?.getContext('2d');
+  if(!ctx) return;
+  if(cDayMulti) cDayMulti.destroy();
+  const labels = dates.map(d=>fullDateLabel(d));
+
+  // Which KPIs to show — driven by checkboxes
+  const shown = D_KPI_CFG.filter(k=>{
+    const cb = document.getElementById('dkpi_'+k.key);
+    return cb ? cb.checked : true;
+  });
+
+  // Separate axes: count/units on left, % and ratios on right
+  const datasets = shown.map(k=>({
+    label: k.label,
+    data: series[k.key],
+    borderColor: k.color,
+    backgroundColor: k.color+'18',
+    borderWidth: 2, pointRadius: 1, tension: .3,
+    yAxisID: (k.key==='conv') ? 'yR' : 'yL',
+    fill: false
+  }));
+
+  cDayMulti = new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,position:'top',
+          labels:{color:'#6e8ca8',font:{family:"'IBM Plex Sans'",size:10},boxWidth:12,padding:12}},
+        tooltip:{backgroundColor:'#131923',borderColor:'#1f2d42',borderWidth:1,
+          titleColor:'#6e8ca8',bodyColor:'#dce8f4',bodyFont:{family:"'IBM Plex Mono'",size:10}}
+      },
+      scales:{
+        x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},maxTicksLimit:16}},
+        yL:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9}},position:'left'},
+        yR:{grid:{display:false},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},callback:v=>v.toFixed(0)+'%'},position:'right',display: shown.some(k=>k.key==='conv')}
+      }
+    }
+  });
+}
+
+function renderDTable(dates, series, zone, startI){
+  const el = document.getElementById('dTable');
+  if(!el) return;
+  const n = Math.min(21, dates.length);
+  const sl = dates.slice(-n);
+  const offsets = Array.from({length:n},(_,i)=>dates.length-n+i);
+
+  let h = '<thead><tr><th style="text-align:left">Fecha</th>';
+  D_KPI_CFG.forEach(k=>{ h+=`<th>${k.label}</th>`; });
+  h += '</tr></thead><tbody>';
+
+  sl.forEach((date, i)=>{
+    const absI = startI + offsets[i];
+    const kp = dailyKPIs(zone, absI);
+    // Compare to same weekday last week
+    const wowI = idxSameWeekdayBefore(absI);
+    const kpWow = wowI >= 0 && wowI !== absI ? dailyKPIs(zone, wowI) : null;
+    const dayName = dayLabel(date);
+    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:10px">
+      <span style="color:var(--sub)">${dayName}</span> ${shortDate(date)}</td>`;
+    D_KPI_CFG.forEach(({key})=>{
+      const v  = kp[key] || 0;
+      const wv = kpWow?.[key] || 0;
+      const fmtFn = (key==='conv') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(1)) : (x=>Math.round(x).toLocaleString('es'));
+      let dh = '';
+      if(kpWow && wv !== 0){
+        const dv = (v - wv) / Math.abs(wv) * 100;
+        // Improvement logic: positives → higher better; negatives → less negative better
+        const up = v >= 0 ? dv >= 0 : v > wv;
+        dh = `<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(0)}%</span>`;
+      }
+      h += `<td>${fmtFn(v)}${dh}</td>`;
+    });
+    h += '</tr>';
+  });
+  h += '</tbody>';
+  el.innerHTML = h;
+}
+
+function buildDailyView(){
+  if(!RD){
+    document.getElementById('dailyContent').innerHTML = `<div class="no-daily">
+      <strong>Vista Diaria no disponible</strong>
+      Este archivo no tiene la pestaña <code style="color:var(--accent2)">"Diario"</code>.<br>
+      Agregá esa pestaña al Excel y volvé a cargarlo.
+    </div>`;
+    return;
+  }
+
+  const lastDate = RD.dates[RD.dates.length-1] || '';
+  const zoneOpts = `<option value="TOTAL">TOTAL País</option>${ZONES.map(z=>`<option value="${z}">${z}</option>`).join('')}`;
+  const kpiToggles = D_KPI_CFG.map(k=>
+    `<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--sub);cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="dkpi_${k.key}" checked onchange="renderDMultiLine(lastRenderedDates,lastRenderedSeries)"
+        style="accent-color:${k.color}"> ${k.label}
+    </label>`
+  ).join('');
+
+  document.getElementById('dailyContent').innerHTML = `
+    <div class="daily-controls" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="dctl-label">Zona</span>
+        <select id="dZone" onchange="renderDaily()" style="font-size:12px;padding:5px 9px;font-weight:600">
+          ${zoneOpts}
+        </select>
+        <div class="dsep"></div>
+        <span class="dctl-label">Día</span>
+        <select id="dDayPick" onchange="renderDKPICards(document.getElementById('dZone').value, getDayPickIdx())" style="font-size:11px;padding:5px 9px;font-family:'IBM Plex Mono',monospace"></select>
+        <div class="dsep"></div>
+        <span class="dctl-label">Comparar vs</span>
+        <button class="drange-btn active" id="cmpYday" onclick="setCmp('yday')">Día anterior</button>
+        <button class="drange-btn" id="cmpWow" onclick="setCmp('wow')">Semana ant.</button>
+        <div class="dsep"></div>
+        <span class="dctl-label">Rango gráfico</span>
+        <button class="drange-btn" data-n="7" onclick="setDRange(7)">7d</button>
+        <button class="drange-btn active" data-n="30" onclick="setDRange(30)">30d</button>
+        <button class="drange-btn" data-n="60" onclick="setDRange(60)">60d</button>
+        <button class="drange-btn" data-n="0" onclick="setDRange(0)">Todo</button>
+      </div>
+    </div>
+
+    <!-- KPI summary cards -->
+    <div class="krow" id="dKPIRow" style="margin-bottom:18px;grid-template-columns:repeat(7,1fr)"></div>
+
+    <!-- Multi-line chart -->
+    <div class="card full" style="margin-bottom:14px">
+      <div class="sec">
+        <span>Evolución Diaria por KPI</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${kpiToggles}</div>
+      </div>
+      <div class="cw" style="height:260px"><canvas id="cDayMulti"></canvas></div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="card full" style="margin-bottom:32px">
+      <div class="sec">Detalle diario · últimos 21 días</div>
+      <div style="overflow-x:auto"><table id="dTable"></table></div>
+    </div>
+  `;
+
+  // Store last rendered data for toggle re-render
+  window.lastRenderedDates = [];
+  window.lastRenderedSeries = {};
+
+  // Patch renderDMultiLine to store last data
+  const origRender = renderDMultiLine;
+  renderDMultiLine = function(dates, series){
+    window.lastRenderedDates = dates;
+    window.lastRenderedSeries = series;
+    origRender(dates, series);
+  };
+
+  renderDaily();
+}
+
+// ── Snapshot export ──────────────────────────────────────────────────────
+function exportSnapshot(){
+  if(!R){alert('Primero cargá el archivo Excel.');return;}
+
+  var allAnalysis = getHistory();
+  var currentData = getCurrentData();
+  var payload = {
+    generatedAt: new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
+    generatedBy: document.getElementById('ftag').textContent,
+    filters: {yr:yr, ms:ms, zn:zn},
+    data: R,
+    analysis: allAnalysis,
+    currentAnalysis: currentData
+  };
+
+  var src = document.documentElement.outerHTML;
+
+  var dataScript = '<scr'+'ipt>const SNAPSHOT_MODE=true;const SNAPSHOT_DATA='+JSON.stringify(payload)+';</'+'script>';
+
+  var initScript = '<scr'+'ipt>'
+    +'window.addEventListener("DOMContentLoaded",function(){'
+    +'  if(typeof SNAPSHOT_MODE==="undefined"||!SNAPSHOT_MODE)return;'
+    +'  document.getElementById("up").style.display="none";'
+    +'  document.getElementById("dash").style.display="block";'
+    +'  document.getElementById("ftag").textContent=SNAPSHOT_DATA.generatedBy;'
+    +'  var sZ=document.getElementById("sZ");'
+    +'  var ZS=["AMBA","Bahia Blanca","C\u00f3rdoba","Costa+Tandil","La Plata","Mendoza","Paran\u00e1","Pinamar","Rosario","San Luis","Santa Fe","Tucuman"];'
+    +'  sZ.innerHTML="<option value=\"TOTAL\">TOTAL Pa\u00eds</option>"+ZS.map(function(z){return"<option value=\""+z+"\">"+z+"</option>";}).join("");'  
+    +'  R=SNAPSHOT_DATA.data;'
+    +'  if(SNAPSHOT_DATA.filters){'
+    +'    document.getElementById("sY").value=SNAPSHOT_DATA.filters.yr;'
+    +'    document.getElementById("sM").value=SNAPSHOT_DATA.filters.ms;'
+    +'    document.getElementById("sZ").value=SNAPSHOT_DATA.filters.zn;'
+    +'  }'
+    +'  document.querySelectorAll(".save-btn,.snapshot-btn").forEach(function(b){b.style.display="none";});'
+    +'  var rb=document.querySelector(".rbtn");if(rb)rb.style.display="none";'
+    +'  window._snapAnalysis=SNAPSHOT_DATA.analysis||[];'
+    +'  window.getHistory=function(){return window._snapAnalysis;};'
+    +'  window.saveHistory=function(){};'
+    +'  buildAnalysisPanel();'
+    +'  go();'
+    +'  if(SNAPSHOT_DATA.analysis&&SNAPSHOT_DATA.analysis.length>0){'
+    +'    document.getElementById("anlPanel").classList.add("open");'
+    +'    document.getElementById("anlToggle").classList.add("active");'
+    +'    document.getElementById("anlToggle").textContent="\u2715 Cerrar an\u00e1lisis";'
+    +'  }'
+    +'});'
+    +'</'+'script>';
+
+  var banner = '<div style="background:#2e7fff;color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;">Snapshot · Generado el '+payload.generatedAt+' · Solo lectura</div>';
+
+  var snap = src;
+  snap = snap.replace('<div id="prog"></div>', banner+'<div id="prog"></div>');
+  snap = snap.replace('</body>', dataScript + initScript + '</body>');
+
+  var blob = new Blob([snap], {type:'text/html;charset=utf-8'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'MedicionesZonas_snapshot_'+periodKey().replace(/[^a-zA-Z0-9_]/g,'_')+'.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+
+  var msg=document.getElementById('saveMsg');
+  msg.textContent='Snapshot generado - listo para enviar';
+  setTimeout(function(){msg.textContent='';},3000);
+}
+
+// ── File loading ──────────────────────────────────────────────────────────
+function loadFile(file){
+  if(!file)return;
+  prog(5);document.getElementById('uerr').textContent='';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      prog(12);
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      R=parseExcel(wb);
+      RD=parseDailySheet(wb);
+      buildDailyView();
+      const sZ=document.getElementById('sZ');
+      sZ.innerHTML='<option value="TOTAL">TOTAL País</option>'+
+        ZONES.map(z=>`<option value="${z}">${z}</option>`).join('');
+      document.getElementById('ftag').textContent=file.name;
+      document.getElementById('up').style.display='none';
+      document.getElementById('dash').style.display='block';
+      buildAnalysisPanel();
+      setTimeout(()=>{bar.style.transition='none';prog(0);
+        setTimeout(()=>{bar.style.transition='width .25s';},50);},500);
+      go();
+    } catch(err){prog(0);document.getElementById('uerr').textContent='⚠ '+err.message;}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function resetUp(){
+  document.getElementById('up').style.display='flex';
+  document.getElementById('dash').style.display='none';
+  // Close analysis panel
+  document.getElementById('anlPanel').classList.remove('open');
+  document.getElementById('anlToggle').classList.remove('active');
+  document.getElementById('anlToggle').textContent='✏ Análisis';
+  R=null;
+}
+
+// ── File input / drag & drop ──────────────────────────────────────────────
+document.getElementById('fi').addEventListener('change',e=>loadFile(e.target.files[0]));
+const dz=document.getElementById('dz');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');loadFile(e.dataTransfer.files[0]);});
+dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.getElementById('fi').click();});
+</script>
+</body>
+</html>
