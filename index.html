@@ -3,1040 +3,485 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mediciones de Zonas · Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>Sales Performance · Planeamiento Regional</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  /* Corporate palette — deep navy + electric blue + silver */
-  --bg:       #0d1117;
-  --s1:       #131923;
-  --s2:       #1a2232;
-  --bd:       #1f2d42;
-  --bd2:      #2a3d58;
-  --accent:   #2e7fff;   /* electric blue — primary action */
-  --accent2:  #5ba3ff;   /* lighter blue */
-  --silver:   #8faabf;   /* silver-slate */
-  --green:    #29c99a;   /* positive delta */
-  --red:      #e05a5a;   /* negative delta */
-  --amber:    #e0a729;   /* warning/highlight */
-  --t:        #dce8f4;   /* primary text */
-  --sub:      #6e8ca8;   /* secondary text */
-  --dim:      #344d66;   /* muted/disabled */
-  --navy:     #091428;   /* deepest navy for cards */
+  --bg:     #0d1117;
+  --s1:     #131923;
+  --s2:     #1a2232;
+  --bd:     #1f2d42;
+  --bd2:    #2a3d58;
+  --accent: #2e7fff;
+  --a2:     #5ba3ff;
+  --silver: #8faabf;
+  --green:  #29c99a;
+  --amber:  #e0a729;
+  --t:      #dce8f4;
+  --sub:    #6e8ca8;
+  --dim:    #2a3d58;
 }
-*{margin:0;padding:0;box-sizing:border-box;}
-body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;}
-code,kbd,.mono{font-family:'IBM Plex Mono',monospace;}
 
-/* ────── Upload Screen ────── */
-#up{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;z-index:1000;gap:28px;}
-.ulogo{font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:22px;
-  color:var(--t);letter-spacing:-.3px;}
-.ulogo span{color:var(--accent);}
-.ubox{border:1.5px dashed var(--bd2);border-radius:14px;padding:52px 64px;
-  text-align:center;cursor:pointer;transition:border-color .2s,background .2s;
-  background:var(--s1);max-width:460px;width:90%;}
-.ubox:hover,.ubox.drag{border-color:var(--accent);background:var(--s2);}
-.uicon{font-size:36px;margin-bottom:16px;opacity:.5;}
-.utitle{font-size:17px;font-weight:600;margin-bottom:8px;color:var(--t);}
-.usub{font-size:12px;color:var(--sub);line-height:1.8;}
-.ubtn{margin-top:20px;background:var(--accent);color:#fff;border:none;
-  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;
-  padding:10px 28px;border-radius:8px;cursor:pointer;transition:background .15s;}
-.ubtn:hover{background:var(--accent2);}
-.uhint{font-size:10px;color:var(--dim);margin-top:8px;}
-#fi{display:none;}
-.uerr{font-size:11px;color:var(--red);min-height:16px;}
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
 
-/* ────── Progress bar ────── */
-#prog{position:fixed;top:0;left:0;height:2px;background:var(--accent);
-  width:0%;transition:width .25s;z-index:2000;box-shadow:0 0 8px var(--accent);}
-
-/* ────── Header ────── */
-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
-  gap:10px;padding:0 30px;height:54px;border-bottom:1px solid var(--bd);
-  position:sticky;top:0;z-index:100;background:rgba(13,17,23,.97);backdrop-filter:blur(16px);}
-.logo{font-size:15px;font-weight:700;color:var(--t);letter-spacing:-.2px;white-space:nowrap;}
-.logo em{color:var(--accent);font-style:normal;}
-.ctrls{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
-.fl{font-size:9px;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;
-  font-family:'IBM Plex Mono',monospace;}
-select{background:var(--s2);border:1px solid var(--bd);color:var(--t);
-  font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 9px;
-  border-radius:6px;cursor:pointer;outline:none;transition:border-color .15s;}
-select:focus,select:hover{border-color:var(--accent);}
-.sep{width:1px;height:16px;background:var(--bd);margin:0 3px;}
-.rbtn{background:transparent;border:1px solid var(--bd);color:var(--sub);
-  font-size:11px;padding:5px 11px;border-radius:6px;cursor:pointer;transition:all .15s;}
-.rbtn:hover{border-color:var(--accent2);color:var(--accent2);}
-/* Analysis toggle */
-.anlbtn{background:var(--accent);color:#fff;border:none;font-size:11px;font-weight:600;
-  padding:5px 14px;border-radius:6px;cursor:pointer;transition:background .15s;
-  display:flex;align-items:center;gap:5px;}
-.anlbtn:hover{background:var(--accent2);}
-.anlbtn.active{background:var(--amber);color:#000;}
-.ftag{font-size:10px;color:var(--dim);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.online{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--sub);}
-.dot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;
-  animation:pulse 2.5s infinite;}
-@keyframes pulse{0%,100%{box-shadow:0 0 0 0 #29c99a40}60%{box-shadow:0 0 0 5px #29c99a00}}
-
-/* ────── Dashboard shell ────── */
-#dash{display:none;}
-.shell{display:flex;min-height:calc(100vh - 54px);}
-
-/* ────── Analysis Panel ────── */
-#anlPanel{
-  width:360px;min-width:360px;border-left:1px solid var(--bd);
-  background:var(--navy);display:none;flex-direction:column;
-  overflow-y:auto;position:sticky;top:54px;height:calc(100vh - 54px);
+body {
+  background: var(--bg);
+  color: var(--t);
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
 }
-#anlPanel.open{display:flex;}
-.apl-head{padding:18px 20px 12px;border-bottom:1px solid var(--bd);}
-.apl-title{font-size:13px;font-weight:700;color:var(--t);margin-bottom:2px;}
-.apl-sub{font-size:10px;color:var(--sub);}
-.apl-section{padding:16px 20px;border-bottom:1px solid var(--bd);}
-.apl-label{font-size:10px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;
-  color:var(--accent2);margin-bottom:8px;font-family:'IBM Plex Mono',monospace;}
-textarea{width:100%;background:var(--s2);border:1px solid var(--bd);color:var(--t);
-  font-family:'IBM Plex Sans',sans-serif;font-size:12px;line-height:1.6;
-  padding:10px 12px;border-radius:8px;resize:vertical;outline:none;
-  transition:border-color .15s;min-height:80px;}
-textarea:focus{border-color:var(--accent);}
-textarea::placeholder{color:var(--dim);}
-.zone-comments{display:flex;flex-direction:column;gap:8px;}
-.zc-item{background:var(--s2);border:1px solid var(--bd);border-radius:8px;overflow:hidden;}
-.zc-head{padding:8px 12px;font-size:11px;font-weight:600;color:var(--silver);
-  cursor:pointer;display:flex;justify-content:space-between;align-items:center;
-  transition:background .15s;}
-.zc-head:hover{background:var(--s1);}
-.zc-head .arr{font-size:10px;color:var(--dim);transition:transform .2s;}
-.zc-head.open .arr{transform:rotate(90deg);}
-.zc-body{display:none;padding:8px 12px;}
-.zc-body.open{display:block;}
-.zc-body textarea{min-height:60px;font-size:11px;}
 
-.save-btn{background:var(--accent);color:#fff;border:none;font-family:'IBM Plex Sans',sans-serif;
-  font-size:12px;font-weight:600;padding:9px 20px;border-radius:7px;cursor:pointer;
-  width:100%;transition:background .15s;margin-top:4px;}
-.save-btn:hover{background:var(--accent2);}
-.export-btn{background:transparent;color:var(--silver);border:1px solid var(--bd2);
-  font-family:'IBM Plex Sans',sans-serif;font-size:11px;padding:7px 16px;
-  border-radius:7px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s;}
-.export-btn:hover{border-color:var(--accent2);color:var(--accent2);}
-.snapshot-btn{background:var(--s2);color:var(--accent2);border:1px solid var(--accent);
-  font-family:'IBM Plex Sans',sans-serif;font-size:11px;font-weight:600;padding:8px 16px;
-  border-radius:7px;cursor:pointer;width:100%;margin-top:6px;transition:all .15s;
-  display:flex;align-items:center;justify-content:center;gap:6px;}
-.snapshot-btn:hover{background:var(--accent);color:#fff;}
-/* Snapshot viewer mode */
-.snap-banner{background:var(--accent);color:#fff;text-align:center;padding:8px 16px;
-  font-size:12px;font-weight:600;letter-spacing:.3px;}
-.snap-readonly textarea{pointer-events:none;opacity:.7;}
-.save-msg{font-size:10px;color:var(--green);text-align:center;min-height:14px;margin-top:4px;}
+/* ── Background grid ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--bd) 1px, transparent 1px),
+    linear-gradient(90deg, var(--bd) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: .35;
+  pointer-events: none;
+  z-index: 0;
+}
 
-/* Period indicator */
-.period-tag{display:inline-flex;align-items:center;gap:6px;background:var(--s2);
-  border:1px solid var(--accent);border-radius:6px;padding:4px 10px;
-  font-size:11px;font-weight:600;color:var(--accent2);font-family:'IBM Plex Mono',monospace;
-  margin-bottom:12px;}
-.period-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+/* Radial glow center */
+body::after {
+  content: '';
+  position: fixed;
+  top: -20vh;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 600px;
+  background: radial-gradient(ellipse, #2e7fff14 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
 
-/* Prev period comparison */
-.prev-peek{background:var(--s2);border:1px solid var(--bd);border-radius:8px;
-  padding:10px 12px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;}
-.prev-peek:hover{border-color:var(--bd2);}
-.prev-peek-head{display:flex;justify-content:space-between;align-items:center;
-  font-size:10px;color:var(--sub);margin-bottom:0;}
-.prev-peek-head .pp-label{font-weight:600;color:var(--silver);}
-.prev-peek-head .pp-arr{transition:transform .2s;font-size:9px;}
-.prev-peek.open .pp-arr{transform:rotate(90deg);}
-.prev-peek-body{display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);}
-.prev-peek.open .prev-peek-body{display:block;}
-.prev-text{font-size:11px;color:var(--sub);line-height:1.6;white-space:pre-wrap;}
-.prev-empty{font-size:10px;color:var(--dim);font-style:italic;}
+/* ── Header ── */
+header {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 48px;
+  height: 58px;
+  border-bottom: 1px solid var(--bd);
+  background: rgba(13,17,23,.92);
+  backdrop-filter: blur(16px);
+}
 
-/* History list */
-.hist-list{display:flex;flex-direction:column;gap:6px;}
-.hist-item{background:var(--s2);border:1px solid var(--bd);border-radius:8px;
-  overflow:hidden;transition:border-color .15s;}
-.hist-item:hover{border-color:var(--bd2);}
-.hist-item-head{padding:9px 12px;display:flex;justify-content:space-between;align-items:center;
-  cursor:pointer;}
-.hist-period{font-size:11px;font-weight:600;color:var(--silver);font-family:'IBM Plex Mono',monospace;}
-.hist-date{font-size:9px;color:var(--dim);}
-.hist-body{display:none;padding:10px 12px;border-top:1px solid var(--bd);}
-.hist-body.open{display:block;}
-.hist-excerpt{font-size:11px;color:var(--sub);line-height:1.6;white-space:pre-wrap;margin-bottom:6px;}
-.hist-load-btn{font-size:10px;color:var(--accent2);background:none;border:1px solid var(--bd);
-  border-radius:5px;padding:4px 10px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;}
-.hist-load-btn:hover{border-color:var(--accent);color:var(--accent);}
-.hist-del-btn{font-size:10px;color:var(--red);background:none;border:none;
-  cursor:pointer;margin-left:6px;opacity:.6;}
-.hist-del-btn:hover{opacity:1;}
-.hist-empty{font-size:11px;color:var(--dim);text-align:center;padding:16px 0;font-style:italic;}
+.h-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-/* Tab bar */
-.tab-bar{display:flex;border-bottom:1px solid var(--bd);margin-bottom:0;}
-.tab{flex:1;padding:10px;font-size:11px;font-weight:600;text-align:center;cursor:pointer;
-  color:var(--sub);border-bottom:2px solid transparent;transition:all .15s;
-  font-family:'IBM Plex Mono',monospace;}
-.tab:hover{color:var(--t);}
-.tab.active{color:var(--accent2);border-bottom-color:var(--accent);}
-.tab-pane{display:none;} .tab-pane.active{display:block;}
+.h-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  flex-shrink: 0;
+}
 
-.kpi-comment-grid{display:flex;flex-direction:column;gap:6px;}
-.kpi-cmnt{background:var(--s2);border:1px solid var(--bd);border-radius:8px;overflow:hidden;}
-.kpi-cmnt-head{padding:7px 12px;font-size:11px;font-weight:600;cursor:pointer;
-  display:flex;justify-content:space-between;align-items:center;color:var(--silver);}
-.kpi-cmnt-head:hover{background:var(--s1);}
-.kpi-cmnt-body{display:none;padding:8px 12px;}
-.kpi-cmnt-body.open{display:block;}
+.h-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--t);
+  letter-spacing: -.1px;
+}
 
-/* ────── Main content ────── */
-.main-wrap{flex:1;min-width:0;}
-main{padding:22px 28px;max-width:100%;}
+.h-name span {
+  color: var(--sub);
+  font-weight: 400;
+  margin-left: 6px;
+  font-size: 12px;
+}
 
-/* ────── KPI Cards ────── */
-.krow{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;}
-.kcard{border-radius:10px;padding:18px 20px;border:1px solid var(--bd);
-  background:var(--s1);position:relative;overflow:hidden;transition:transform .16s,border-color .2s;}
-.kcard:hover{transform:translateY(-2px);border-color:var(--bd2);}
-.kcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
-.ka::before{background:var(--accent);}  .kb::before{background:var(--accent2);}
-.kc::before{background:var(--green);}   .kd::before{background:var(--amber);}
-.klbl{font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
-  color:var(--sub);margin-bottom:6px;font-family:'IBM Plex Mono',monospace;}
-.kval{font-size:26px;font-weight:700;line-height:1;margin-bottom:5px;}
-.ka .kval{color:var(--accent2);}  .kb .kval{color:var(--accent2);}
-.kc .kval{color:var(--green);}    .kd .kval{color:var(--amber);}
-.kdelta{font-size:10px;color:var(--sub);}
-.dbadge{display:inline-block;font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;
-  font-family:'IBM Plex Mono',monospace;}
-.dbadge.up{background:#29c99a18;color:var(--green);}
-.dbadge.dn{background:#e05a5a18;color:var(--red);}
+.h-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+  letter-spacing: .5px;
+}
 
-/* ────── Layout ────── */
-.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
-.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px;}
-.card.full{grid-column:1/-1;}
-.sec{font-size:10px;font-weight:700;letter-spacing:.6px;color:var(--sub);
-  margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--bd);
-  text-transform:uppercase;font-family:'IBM Plex Mono',monospace;
-  display:flex;justify-content:space-between;align-items:center;}
-.cw{position:relative;}.h255{height:255px;}.h240{height:240px;}
+/* ── Hero ── */
+.hero {
+  position: relative;
+  z-index: 1;
+  padding: 80px 48px 56px;
+  max-width: 900px;
+}
 
-/* ────── Table ────── */
-table{width:100%;border-collapse:collapse;font-size:11px;}
-th{font-size:9px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim);
-  padding:6px 9px;text-align:right;border-bottom:1px solid var(--bd);
-  font-family:'IBM Plex Mono',monospace;}
-th:first-child{text-align:left;}
-td{padding:7px 9px;text-align:right;border-bottom:1px solid rgba(31,45,66,.5);
-  color:var(--sub);font-family:'IBM Plex Mono',monospace;font-size:11px;}
-td:first-child{text-align:left;color:var(--t);font-weight:500;font-family:'IBM Plex Sans',sans-serif;}
-tr:hover td{background:var(--s2);}
-tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-bottom:none;}
-.bw{display:flex;align-items:center;justify-content:flex-end;gap:6px;}
-.mb{height:3px;border-radius:2px;background:var(--accent);opacity:.4;}
+.hero-eyebrow {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
-/* ────── Ranking ────── */
-.rl{display:flex;flex-direction:column;gap:7px;padding-top:2px;}
-.rr{display:grid;grid-template-columns:110px 1fr 68px;align-items:center;gap:8px;}
-.rn{font-size:10px;color:var(--sub);text-align:right;}
-.rbg{background:var(--s2);border-radius:3px;overflow:hidden;height:16px;}
-.rbf{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.16,1,.3,1);}
-.rv{font-size:12px;font-weight:700;color:var(--t);text-align:right;
-  font-family:'IBM Plex Mono',monospace;}
+.hero-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 1px;
+  background: var(--accent);
+}
 
-@media(max-width:960px){
-  main{padding:12px;}header{padding:0 14px;}.krow{grid-template-columns:1fr 1fr;}
-  .g2{grid-template-columns:1fr;}.card.full{grid-column:1;}
-  #anlPanel{width:100%;min-width:0;height:auto;position:static;border-left:none;border-top:1px solid var(--bd);}
-  .shell{flex-direction:column;}
+.hero-title {
+  font-size: clamp(32px, 5vw, 52px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -.5px;
+  color: var(--t);
+  margin-bottom: 16px;
+}
+
+.hero-title em {
+  color: var(--accent);
+  font-style: normal;
+}
+
+.hero-sub {
+  font-size: 15px;
+  color: var(--sub);
+  line-height: 1.7;
+  max-width: 520px;
+  font-weight: 300;
+}
+
+/* ── Divider ── */
+.divider {
+  position: relative;
+  z-index: 1;
+  margin: 0 48px;
+  border: none;
+  border-top: 1px solid var(--bd);
+  margin-bottom: 48px;
+}
+
+/* ── Tools grid ── */
+.tools-section {
+  position: relative;
+  z-index: 1;
+  padding: 0 48px 80px;
+}
+
+.section-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--sub);
+  margin-bottom: 24px;
+}
+
+.tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+/* ── Tool card ── */
+.tool-card {
+  background: var(--s1);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  padding: 28px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  transition: border-color .2s, transform .2s, background .2s;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.tool-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 14px 14px 0 0;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .25s cubic-bezier(.16,1,.3,1);
+}
+
+.tool-card.active:hover {
+  border-color: var(--accent);
+  background: var(--s2);
+  transform: translateY(-3px);
+}
+
+.tool-card.active:hover::before {
+  transform: scaleX(1);
+}
+
+.tool-card.soon {
+  opacity: .55;
+  cursor: default;
+}
+
+.tool-card.soon:hover {
+  transform: none;
+  border-color: var(--bd);
+}
+
+/* Card header */
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.icon-blue  { background: #2e7fff18; }
+.icon-green { background: #29c99a18; }
+.icon-amber { background: #e0a72918; }
+.icon-red   { background: #e05a5a18; }
+
+.card-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.badge-live {
+  background: #29c99a18;
+  color: var(--green);
+  border: 1px solid #29c99a30;
+}
+
+.badge-soon {
+  background: var(--s2);
+  color: var(--dim);
+  border: 1px solid var(--bd);
+}
+
+.card-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--t);
+  margin-bottom: 8px;
+  letter-spacing: -.2px;
+}
+
+.card-desc {
+  font-size: 12px;
+  color: var(--sub);
+  line-height: 1.7;
+  flex: 1;
+}
+
+.card-footer {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--bd);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.card-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  color: var(--dim);
+  letter-spacing: .5px;
+}
+
+.card-arrow {
+  font-size: 16px;
+  color: var(--accent);
+  transition: transform .2s;
+}
+
+.tool-card.active:hover .card-arrow {
+  transform: translateX(4px);
+}
+
+/* ── Footer ── */
+footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--bd);
+  padding: 20px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.f-text {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--dim);
+}
+
+/* ── Animations ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.hero        { animation: fadeUp .5s ease both; }
+.divider     { animation: fadeUp .5s .1s ease both; }
+.tools-section { animation: fadeUp .5s .15s ease both; }
+
+.tool-card:nth-child(1) { animation: fadeUp .4s .2s ease both; }
+.tool-card:nth-child(2) { animation: fadeUp .4s .28s ease both; }
+.tool-card:nth-child(3) { animation: fadeUp .4s .36s ease both; }
+.tool-card:nth-child(4) { animation: fadeUp .4s .44s ease both; }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  header, .hero, .tools-section, footer { padding-left: 20px; padding-right: 20px; }
+  .divider { margin: 0 20px 40px; }
+  .hero { padding-top: 48px; padding-bottom: 40px; }
+  .tools-grid { grid-template-columns: 1fr; }
 }
 </style>
 </head>
 <body>
-<div id="prog"></div>
 
-<!-- ══ UPLOAD SCREEN ══════════════════════════════════════════════════════ -->
-<div id="up">
-  <div class="ulogo">Mediciones de <span>Zonas</span></div>
-  <div class="ubox" id="dz">
-    <div class="uicon">📊</div>
-    <div class="utitle">Abrí el archivo Excel</div>
-    <div class="usub">
-      Arrastrá el archivo acá, o hacé click para buscarlo.<br>
-      Compatible con el Excel original o el actualizado.<br>
-      Cada semana que actualizás el Excel, lo volvés a abrir acá.
-    </div>
-    <button class="ubtn" onclick="event.stopPropagation();document.getElementById('fi').click()">
-      Elegir archivo .xlsx
-    </button>
-    <div class="uhint">✓ Todo queda en tu computadora — nada se sube a ningún servidor</div>
+<header>
+  <div class="h-brand">
+    <div class="h-logo">SP</div>
+    <div class="h-name">Sales Performance <span>· Planeamiento Regional</span></div>
   </div>
-  <div class="uerr" id="uerr"></div>
-  <input type="file" id="fi" accept=".xlsx,.xls">
-</div>
+  <div class="h-meta">BASE DE HERRAMIENTAS</div>
+</header>
 
-<!-- ══ DASHBOARD ══════════════════════════════════════════════════════════ -->
-<div id="dash">
-  <header>
-    <div class="logo">Mediciones de <em>Zonas</em></div>
-    <div class="ctrls">
-      <span class="fl">Año</span>
-      <select id="sY" onchange="go()">
-        <option value="2026">2026</option>
-        <option value="2025">2025</option>
-        <option value="ambos">2025 + 2026</option>
-      </select>
-      <div class="sep"></div>
-      <span class="fl">Mes</span>
-      <select id="sM" onchange="go()">
-        <option value="0">Acumulado</option>
-        <option value="1">Enero</option><option value="2">Febrero</option>
-        <option value="3">Marzo</option><option value="4">Abril</option>
-        <option value="5">Mayo</option><option value="6">Junio</option>
-        <option value="7">Julio</option><option value="8">Agosto</option>
-        <option value="9">Septiembre</option><option value="10">Octubre</option>
-        <option value="11">Noviembre</option><option value="12">Diciembre</option>
-      </select>
-      <div class="sep"></div>
-      <span class="fl">Zona</span>
-      <select id="sZ" onchange="go()"><option value="TOTAL">TOTAL País</option></select>
-      <div class="sep"></div>
-      <button class="anlbtn" id="anlToggle" onclick="togglePanel()">✏ Análisis</button>
-      <div class="sep"></div>
-      <button class="rbtn" onclick="resetUp()">↩ Cambiar archivo</button>
-    </div>
-    <div class="online"><span class="dot"></span><span class="ftag" id="ftag"></span></div>
-  </header>
+<section class="hero">
+  <div class="hero-eyebrow">Panel de gestión</div>
+  <h1 class="hero-title">Herramientas de<br><em>análisis comercial</em></h1>
+  <p class="hero-sub">
+    Acceso centralizado a los reportes y dashboards del área.
+    Cada herramienta lee el archivo Excel directamente desde tu computadora — sin servidores, sin instalaciones.
+  </p>
+</section>
 
-  <div class="shell">
-    <!-- Main dashboard -->
-    <div class="main-wrap">
-      <main>
-        <div class="krow" id="krow"></div>
-        <div class="g2">
-          <div class="card">
-            <div class="sec"><span>Evolución Mensual</span>
-              <select id="sKE" onchange="renderEvol()" style="font-size:10px;padding:3px 8px;">
-                <option value="bpp">BPP</option><option value="conv">% Conversión</option>
-                <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
-                <option value="vis">Visitas</option>
-              </select>
-            </div>
-            <div class="cw h255"><canvas id="cE"></canvas></div>
-          </div>
-          <div class="card">
-            <div class="sec"><span>Ranking por Zona</span>
-              <select id="sKR" onchange="renderRank()" style="font-size:10px;padding:3px 8px;">
-                <option value="bpp">BPP</option><option value="conv">% Conversión</option>
-                <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
-                <option value="vis">Visitas</option>
-              </select>
-            </div>
-            <div class="rl" id="rl"></div>
-          </div>
-        </div>
-        <div class="card full" style="margin-bottom:14px">
-          <div class="sec"><span>Comparativo por Zona · 2025 vs 2026</span>
-            <select id="sKC" onchange="renderComp()" style="font-size:10px;padding:3px 8px;">
-              <option value="bpp">BPP</option><option value="conv">% Conversión</option>
-              <option value="vpp">VPP</option><option value="rp_pct">% Ventas RP</option>
-              <option value="vis">Visitas</option>
-            </select>
-          </div>
-          <div class="cw h240"><canvas id="cC"></canvas></div>
-        </div>
-        <div class="card full" style="margin-bottom:32px">
-          <div class="sec">Detalle por Zona · <span id="tT"></span></div>
-          <div style="overflow-x:auto"><table id="tZ"></table></div>
-        </div>
-      </main>
+<hr class="divider">
+
+<section class="tools-section">
+  <div class="section-label">Herramientas disponibles</div>
+
+  <div class="tools-grid">
+
+    <!-- Mediciones de Zonas — LIVE -->
+    <a class="tool-card active" href="./mediciones/index.html">
+      <div class="card-top">
+        <div class="card-icon icon-blue">📊</div>
+        <span class="card-badge badge-live">● Disponible</span>
+      </div>
+      <div class="card-title">Mediciones de Zonas</div>
+      <p class="card-desc">
+        KPIs por zona y período: BPP, % Conversión, VPP y % Ventas RP.
+        Comparativo 2025 vs 2026, ranking, evolución mensual y panel de análisis con historial.
+      </p>
+      <div class="card-footer">
+        <span class="card-meta">EXCEL · 12 ZONAS · ANÁLISIS</span>
+        <span class="card-arrow">→</span>
+      </div>
+    </a>
+
+    <!-- Visitas — PRÓXIMAMENTE -->
+    <div class="tool-card soon">
+      <div class="card-top">
+        <div class="card-icon icon-green">🗺️</div>
+        <span class="card-badge badge-soon">Próximamente</span>
+      </div>
+      <div class="card-title">Visitas</div>
+      <p class="card-desc">
+        Análisis de visitas por zona, frecuencia y cobertura territorial.
+        Seguimiento de tendencias y variación respecto al período anterior.
+      </p>
+      <div class="card-footer">
+        <span class="card-meta">EN DESARROLLO</span>
+        <span class="card-arrow" style="color:var(--dim)">→</span>
+      </div>
     </div>
 
-    <!-- ANALYSIS PANEL -->
-    <div id="anlPanel">
-      <div class="apl-head">
-        <div class="apl-title">Panel de Análisis</div>
-        <div class="apl-sub" id="anlSub">Seleccioná un período para comenzar</div>
+    <!-- Ventas — PRÓXIMAMENTE -->
+    <div class="tool-card soon">
+      <div class="card-top">
+        <div class="card-icon icon-amber">💰</div>
+        <span class="card-badge badge-soon">Próximamente</span>
       </div>
-      <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('write')">✏ Escribir</div>
-        <div class="tab" onclick="switchTab('hist')">🕐 Historial</div>
-      </div>
-      <div class="tab-pane active" id="tabWrite" style="overflow-y:auto;flex:1;">
-        <div class="apl-section" style="padding-bottom:8px;">
-          <div class="period-tag" id="periodTag">
-            <span class="period-dot"></span><span id="periodLabel">—</span>
-          </div>
-          <div class="prev-peek" id="prevPeek" onclick="this.classList.toggle('open')">
-            <div class="prev-peek-head">
-              <span class="pp-label" id="prevLabel">Período anterior</span>
-              <span class="pp-arr">▶</span>
-            </div>
-            <div class="prev-peek-body">
-              <div class="prev-text" id="prevText"></div>
-            </div>
-          </div>
-        </div>
-        <div class="apl-section">
-          <div class="apl-label">Resumen Ejecutivo</div>
-          <textarea id="txtResumen" rows="5" placeholder="Conclusiones principales del período..."></textarea>
-        </div>
-        <div class="apl-section">
-          <div class="apl-label">Notas Generales</div>
-          <textarea id="txtNotas" rows="3" placeholder="Contexto, factores externos, decisiones tomadas..."></textarea>
-        </div>
-        <div class="apl-section">
-          <div class="apl-label">Análisis por KPI</div>
-          <div class="kpi-comment-grid" id="kpiComments"></div>
-        </div>
-        <div class="apl-section">
-          <div class="apl-label">Comentarios por Zona</div>
-          <div class="zone-comments" id="zoneComments"></div>
-        </div>
-        <div class="apl-section">
-          <button class="save-btn" onclick="saveAnalysis()">💾 Guardar análisis</button>
-          <button class="export-btn" onclick="exportAnalysis()">↓ Exportar como .txt</button>
-          <button class="snapshot-btn" onclick="exportSnapshot()">📤 Exportar snapshot para compartir</button>
-          <div class="save-msg" id="saveMsg"></div>
-        </div>
-      </div>
-      <div class="tab-pane" id="tabHist" style="overflow-y:auto;flex:1;">
-        <div class="apl-section">
-          <div class="apl-label">Análisis guardados</div>
-          <div class="hist-list" id="histList"></div>
-        </div>
+      <div class="card-title">Ventas</div>
+      <p class="card-desc">
+        Dashboard de ventas brutas, RE y RP por zona y canal.
+        Evolución mensual y comparativo interanual con alertas de desvío.
+      </p>
+      <div class="card-footer">
+        <span class="card-meta">EN DESARROLLO</span>
+        <span class="card-arrow" style="color:var(--dim)">→</span>
       </div>
     </div>
+
+    <!-- Performance por Vendedor — PRÓXIMAMENTE -->
+    <div class="tool-card soon">
+      <div class="card-top">
+        <div class="card-icon icon-red">👤</div>
+        <span class="card-badge badge-soon">Próximamente</span>
+      </div>
+      <div class="card-title">Performance por Vendedor</div>
+      <p class="card-desc">
+        Ranking individual, cumplimiento de objetivos y evolución de KPIs
+        por vendedor. Vista por zona y comparativo de equipo.
+      </p>
+      <div class="card-footer">
+        <span class="card-meta">EN DESARROLLO</span>
+        <span class="card-arrow" style="color:var(--dim)">→</span>
+      </div>
+    </div>
+
   </div>
-</div>
+</section>
+
+<footer>
+  <span class="f-text">SALES PERFORMANCE · PLANEAMIENTO REGIONAL</span>
+  <span class="f-text" id="fdate"></span>
+</footer>
 
 <script>
-// ── Constants ─────────────────────────────────────────────────────────────
-const ZONES=['AMBA','Bahia Blanca','Córdoba','Costa+Tandil','La Plata','Mendoza',
-             'Paraná','Pinamar','Rosario','San Luis','Santa Fe','Tucuman'];
-const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
-              'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const KPI_LABELS={bpp:'BPP (Ventas/FTE)',conv:'% Conversión',vpp:'VPP (Ventas/Visitas)',rp_pct:'% Ventas RP'};
-const RC=['#2e7fff','#5ba3ff','#7fbcff','#29c99a','#56d8b2','#7ae3c7',
-          '#e0a729','#ebbe60','#f5d48e','#e05a5a','#e87a7a','#f0a0a0'];
-
-let R=null,yr='2026',ms=0,zn='TOTAL',cE,cC;
-
-// ── Formatters ─────────────────────────────────────────────────────────────
-const fmt={bpp:v=>v==null?'—':v.toFixed(2),conv:v=>v==null?'—':(v*100).toFixed(1)+'%',
-  vpp:v=>v==null?'—':v.toFixed(2),rp_pct:v=>v==null?'—':(v*100).toFixed(1)+'%',
-  vis:v=>v==null?'—':Math.round(v).toLocaleString('es'),vb:v=>v==null?'—':Math.round(v).toLocaleString('es'),
-  re:v=>v==null?'—':Math.round(v).toLocaleString('es'),rp:v=>v==null?'—':Math.round(v).toLocaleString('es'),
-  fte:v=>v==null?'—':v.toFixed(1)};
-const isPct=k=>['conv','rp_pct'].includes(k);
-const isInt=k=>['vis','vb','re','rp'].includes(k);
-const fmtAx=(k,v)=>isPct(k)?(v*100).toFixed(0)+'%':isInt(k)?v.toLocaleString('es'):v.toFixed(2);
-const fmtTp=(k,v)=>v==null?null:isPct(k)?(v*100).toFixed(1)+'%':isInt(k)?Math.round(v).toLocaleString('es'):v.toFixed(2);
-
-// ── Progress ──────────────────────────────────────────────────────────────
-const bar=document.getElementById('prog');
-function prog(p){bar.style.width=p+'%';}
-
-// ── Excel Parsing ─────────────────────────────────────────────────────────
-function readSection(ws,startRow,nRows=12){
-  const data={};
-  for(let i=0;i<nRows;i++){
-    const r=startRow+i;
-    const zc=ws[XLSX.utils.encode_cell({r:r-1,c:0})];
-    if(zc?.v&&ZONES.includes(zc.v)){
-      data[zc.v]=Array.from({length:12},(_,m)=>{
-        const cell=ws[XLSX.utils.encode_cell({r:r-1,c:m+1})];
-        return cell?parseFloat(cell.v)||0:0;
-      });
-    }
-  }
-  return data;
-}
-
-function parseExcel(wb){
-  prog(20);
-  const sh=wb.SheetNames;
-  if(!sh.includes("Informacion (Act)"))
-    throw new Error("No se encontró la pestaña 'Informacion (Act)'. ¿Es el archivo correcto?");
-  prog(35);
-  const ws26=wb.Sheets["Informacion (Act)"];
-  const k26={Visitas:readSection(ws26,3),VentasB:readSection(ws26,18),
-    VentasRP:readSection(ws26,34),VentasRE:readSection(ws26,50),FTE:readSection(ws26,66)};
-  prog(55);
-  let k25;
-  if(sh.includes("Informacion 2025")){
-    const w=wb.Sheets["Informacion 2025"];
-    k25={Visitas:readSection(w,3),VentasB:readSection(w,18),
-      VentasRP:readSection(w,34),VentasRE:readSection(w,50),FTE:readSection(w,66)};
-  } else if(sh.includes("2025")){
-    const w=wb.Sheets["2025"];
-    k25={Visitas:readSection(w,7,12),VentasB:readSection(w,61,12),
-      VentasRE:readSection(w,89,12),VentasRP:readSection(w,75,12),FTE:readSection(w,48,12)};
-  } else {
-    k25={Visitas:{},VentasB:{},VentasRP:{},VentasRE:{},FTE:{}};
-  }
-  prog(70);
-  let n26=0;
-  for(let m=0;m<12;m++){if(ZONES.reduce((s,z)=>s+(k26.Visitas[z]?.[m]||0),0)>0)n26=m+1;}
-  function buildM(k,zone,nM){
-    return Array.from({length:nM},(_,m)=>{
-      const vis=k.Visitas[zone]?.[m]||0,vb=k.VentasB[zone]?.[m]||0;
-      const re=k.VentasRE[zone]?.[m]||0,rp=k.VentasRP[zone]?.[m]||0,fte=k.FTE[zone]?.[m]||0;
-      return{vis,vb,re,rp,fte:+fte.toFixed(4),bpp:fte?+(vb/fte).toFixed(4):null,
-        conv:vis?+(re/vis).toFixed(4):null,vpp:vis?+(vb/vis).toFixed(4):null,rp_pct:vb?+(rp/vb).toFixed(4):null};
-    });
-  }
-  function sumM(zm,n){
-    const a={vis:0,vb:0,re:0,rp:0,fte:0};
-    zm.slice(0,n).forEach(d=>{a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
-    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
-      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
-      rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
-  }
-  prog(85);
-  const out={n26,m26:MONTHS.slice(0,n26),zm25:{},zm26:{},zt25:{},zt26:{}};
-  ZONES.forEach(z=>{
-    out.zm25[z]=buildM(k25,z,12);out.zm26[z]=buildM(k26,z,n26);
-    out.zt25[z]=sumM(out.zm25[z],12);out.zt26[z]=sumM(out.zm26[z],n26);
-  });
-  prog(100);
-  return out;
-}
-
-// ── Data helpers ──────────────────────────────────────────────────────────
-function totZ(y,z){
-  const src=y==='2025'?R.zt25:R.zt26;
-  if(z!=='TOTAL')return src[z];
-  const a={vis:0,vb:0,re:0,rp:0,fte:0};
-  ZONES.forEach(zz=>{const d=src[zz];a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
-  return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
-    conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
-    rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
-}
-function monZ(y,z){
-  const src=y==='2025'?R.zm25:R.zm26,nM=y==='2025'?12:R.n26;
-  if(z!=='TOTAL')return src[z]||[];
-  return Array.from({length:nM},(_,m)=>{
-    const a={vis:0,vb:0,re:0,rp:0,fte:0};
-    ZONES.forEach(zz=>{const d=(src[zz]||[])[m]||{};a.vis+=d.vis||0;a.vb+=d.vb||0;
-      a.re+=d.re||0;a.rp+=d.rp||0;a.fte+=d.fte||0;});
-    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
-      conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
-      rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
-  });
-}
-function getV(y,z,k){
-  if(ms===0)return totZ(y,z)[k];
-  const nM=y==='2025'?12:R.n26;
-  if(ms>nM)return null;
-  return(monZ(y,z)[ms-1]||{})[k]??null;
-}
-function aggK(monthly,k,n){
-  const nk={bpp:'vb',conv:'re',vpp:'vb',rp_pct:'rp'}[k],dk={bpp:'fte',conv:'vis',vpp:'vis',rp_pct:'vb'}[k];
-  if(nk){let num=0,den=0;monthly.slice(0,n).forEach(d=>{if(d){num+=d[nk]||0;den+=d[dk]||0;}});return den?+(num/den).toFixed(4):null;}
-  return monthly.slice(0,n).reduce((s,d)=>s+(d?d[k]||0:0),0);
-}
-function delt(c,p){
-  if(c==null||p==null||p===0)return'';
-  const pct=((c-p)/Math.abs(p)*100).toFixed(1),up=parseFloat(pct)>=0;
-  return`<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>`;
-}
-
-// ── Chart options ─────────────────────────────────────────────────────────
-function chartOpts(k){
-  return{responsive:true,maintainAspectRatio:false,
-    plugins:{
-      legend:{labels:{color:'#6e8ca8',font:{family:"'IBM Plex Mono'",size:10},boxWidth:10}},
-      tooltip:{backgroundColor:'#13192380',borderColor:'#1f2d42',borderWidth:1,
-        titleColor:'#6e8ca8',bodyColor:'#dce8f4',
-        bodyFont:{family:"'IBM Plex Mono'",size:11},
-        callbacks:{label:c=>{const v=c.raw;if(v==null)return null;return` ${fmtTp(k,v)}`;}}
-      }
-    },
-    scales:{
-      x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9}}},
-      y:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:10},
-        callback:v=>fmtAx(k,v)}}
-    }};
-}
-
-// ── Render: KPI Cards ─────────────────────────────────────────────────────
-function renderKPIs(){
-  const cards=[{k:'bpp',l:'BPP',c:'ka'},{k:'conv',l:'% CONVERSIÓN',c:'kb'},
-               {k:'vpp',l:'VPP',c:'kc'},{k:'rp_pct',l:'% VENTAS RP',c:'kd'}];
-  const y=yr==='ambos'?'2026':yr;
-  document.getElementById('krow').innerHTML=cards.map(cc=>{
-    const v=getV(y,zn,cc.k);let dH='';
-    if(y==='2026'){
-      const m26=monZ('2026',zn),m25=monZ('2025',zn);
-      if(ms===0){
-        const a26=aggK(m26,cc.k,R.n26),a25=aggK(m25.slice(0,R.n26),cc.k,R.n26);
-        dH=delt(a26,a25)+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
-      } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k));}
-    }
-    return`<div class="kcard ${cc.c}"><div class="klbl">${cc.l}</div>
-      <div class="kval">${fmt[cc.k](v)}</div>
-      <div class="kdelta">${dH||'&nbsp;'}</div></div>`;
-  }).join('');
-}
-
-// ── Render: Evolution ────────────────────────────────────────────────────
-function renderEvol(){
-  const k=document.getElementById('sKE').value;
-  if(cE)cE.destroy();
-  const ctx=document.getElementById('cE').getContext('2d');
-  let labels,datasets=[];
-  if(yr==='ambos'){
-    labels=[...MONTHS,...R.m26.map(m=>m.slice(0,3)+"'26")];
-    const s25=monZ('2025',zn).map(d=>d[k]??null);
-    const s26=[...monZ('2026',zn).map(d=>d[k]??null),...Array(12-R.n26).fill(null)];
-    datasets=[
-      {label:'2025',data:s25,borderColor:'#5ba3ff',backgroundColor:'#5ba3ff12',borderWidth:1.5,pointRadius:3,tension:.4,fill:false},
-      {label:'2026',data:s26,borderColor:'#2e7fff',backgroundColor:'#2e7fff20',borderWidth:2,pointRadius:3,tension:.4,fill:false}
-    ];
-  } else {
-    labels=yr==='2025'?MONTHS:R.m26;
-    datasets=[{label:yr,data:monZ(yr,zn).map(d=>d[k]??null),
-      borderColor:'#2e7fff',backgroundColor:'#2e7fff15',borderWidth:2,pointRadius:3,tension:.4,fill:true}];
-  }
-  const opts=chartOpts(k);opts.plugins.legend.display=yr==='ambos';
-  cE=new Chart(ctx,{type:'line',data:{labels,datasets},options:opts});
-}
-
-// ── Render: Comparison ───────────────────────────────────────────────────
-function renderComp(){
-  const k=document.getElementById('sKC').value;
-  if(cC)cC.destroy();
-  const ctx=document.getElementById('cC').getContext('2d');
-  const opts=chartOpts(k);
-  opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp(k,c.raw)}`};
-  opts.plugins.legend.display=true;
-  cC=new Chart(ctx,{type:'bar',data:{labels:ZONES,datasets:[
-    {label:'2025',data:ZONES.map(z=>getV('2025',z,k)),backgroundColor:'#5ba3ff55',borderColor:'#5ba3ff',borderWidth:1,borderRadius:4},
-    {label:'2026',data:ZONES.map(z=>getV('2026',z,k)),backgroundColor:'#2e7fff99',borderColor:'#2e7fff',borderWidth:1,borderRadius:4}
-  ]},options:opts});
-}
-
-// ── Render: Ranking ──────────────────────────────────────────────────────
-function renderRank(){
-  const k=document.getElementById('sKR').value,y=yr==='ambos'?'2026':yr;
-  const sorted=[...ZONES].map(z=>({z,v:getV(y,z,k)})).filter(x=>x.v!=null).sort((a,b)=>b.v-a.v);
-  const max=sorted[0]?.v||1;
-  document.getElementById('rl').innerHTML=sorted.map((x,i)=>`
-    <div class="rr"><div class="rn">${x.z}</div>
-    <div class="rbg"><div class="rbf" style="width:${(x.v/max*100).toFixed(1)}%;background:${RC[i]||'#2e7fff'}"></div></div>
-    <div class="rv">${fmt[k](x.v)}</div></div>`).join('');
-}
-
-// ── Render: Table ────────────────────────────────────────────────────────
-function renderTable(){
-  const y=yr==='ambos'?'2026':yr,yp=y==='2026'?'2025':null;
-  const mn=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  document.getElementById('tT').textContent=`${yr==='ambos'?'2025+2026':yr}${ms>0?' · '+mn[ms]:''}`;
-  const sorted=[...ZONES].sort((a,b)=>(getV(y,b,'vis')||0)-(getV(y,a,'vis')||0));
-  const maxV=Math.max(...sorted.map(z=>getV(y,z,'vis')||0));
-  let h=`<thead><tr><th>Zona</th><th>Visitas</th><th>FTE</th><th>V.Brutas</th><th>V.RE</th><th>V.RP</th>
-    <th>BPP</th>${yp?`<th>BPP '25</th><th>Δ</th>`:''}
-    <th>% Conv.</th>${yp?`<th>Conv '25</th><th>Δ</th>`:''}
-    <th>VPP</th><th>% RP</th></tr></thead><tbody>`;
-  for(const z of sorted){
-    const d={vis:getV(y,z,'vis'),vb:getV(y,z,'vb'),re:getV(y,z,'re'),rp:getV(y,z,'rp'),fte:getV(y,z,'fte'),
-      bpp:getV(y,z,'bpp'),conv:getV(y,z,'conv'),vpp:getV(y,z,'vpp'),rp_pct:getV(y,z,'rp_pct')};
-    const dp=yp?{bpp:getV(yp,z,'bpp'),conv:getV(yp,z,'conv')}:null;
-    const bw=d.vis?Math.round(d.vis/maxV*46):0;
-    h+=`<tr><td>${z}</td>
-      <td><div class="bw"><div class="mb" style="width:${bw}px"></div>${fmt.vis(d.vis)}</div></td>
-      <td>${fmt.fte(d.fte)}</td><td>${fmt.vb(d.vb)}</td><td>${fmt.re(d.re)}</td><td>${fmt.rp(d.rp)}</td>
-      <td>${fmt.bpp(d.bpp)}</td>${dp?`<td style="color:var(--dim)">${fmt.bpp(dp.bpp)}</td><td>${delt(d.bpp,dp.bpp)}</td>`:''}
-      <td>${fmt.conv(d.conv)}</td>${dp?`<td style="color:var(--dim)">${fmt.conv(dp.conv)}</td><td>${delt(d.conv,dp.conv)}</td>`:''}
-      <td>${fmt.vpp(d.vpp)}</td><td>${fmt.rp_pct(d.rp_pct)}</td></tr>`;
-  }
-  const tt={vis:0,vb:0,re:0,rp:0,fte:0};
-  ZONES.forEach(z=>{tt.vis+=getV(y,z,'vis')||0;tt.vb+=getV(y,z,'vb')||0;
-    tt.re+=getV(y,z,'re')||0;tt.rp+=getV(y,z,'rp')||0;tt.fte+=getV(y,z,'fte')||0;});
-  tt.bpp=tt.fte?tt.vb/tt.fte:null;tt.conv=tt.vis?tt.re/tt.vis:null;
-  tt.vpp=tt.vis?tt.vb/tt.vis:null;tt.rp_pct=tt.vb?tt.rp/tt.vb:null;
-  h+=`<tr class="ttot"><td>TOTAL</td><td>${fmt.vis(tt.vis)}</td><td>${fmt.fte(tt.fte)}</td>
-    <td>${fmt.vb(tt.vb)}</td><td>${fmt.re(tt.re)}</td><td>${fmt.rp(tt.rp)}</td>
-    <td>${fmt.bpp(tt.bpp)}</td>${yp?'<td></td><td></td>':''}
-    <td>${fmt.conv(tt.conv)}</td>${yp?'<td></td><td></td>':''}
-    <td>${fmt.vpp(tt.vpp)}</td><td>${fmt.rp_pct(tt.rp_pct)}</td></tr></tbody>`;
-  document.getElementById('tZ').innerHTML=h;
-}
-
-// ── Main trigger ─────────────────────────────────────────────────────────
-function go(){
-  yr=document.getElementById('sY').value;ms=+document.getElementById('sM').value;
-  zn=document.getElementById('sZ').value;
-  Array.from(document.getElementById('sM').options).forEach(o=>{
-    const m=+o.value;o.disabled=(yr==='2026'&&m>R.n26&&m>0);
-    o.style.color=o.disabled?'var(--dim)':'';
-  });
-  if(yr==='2026'&&ms>R.n26){document.getElementById('sM').value='0';ms=0;}
-  renderKPIs();renderEvol();renderComp();renderRank();renderTable();
-  // Refresh analysis panel if open
-  if(R && document.getElementById('anlPanel').classList.contains('open')){
-    refreshPanelForPeriod();
-  }
-}
-
-// ── Analysis Panel (with history) ────────────────────────────────────────
-const HIST_KEY = 'mz_analysis_history_v2'; // key → array of saved entries
-
-// Each entry: { periodKey, periodLabel, resumen, notas, kpi:{}, zones:{}, savedAt }
-
-function periodKey(){
-  // Unique key for current filter combo: "2026_3_TOTAL" etc.
-  return `${yr}_${ms}_${zn}`;
-}
-function periodLabel(){
-  const mn=['Acumulado','Enero','Febrero','Marzo','Abril','Mayo','Junio',
-            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const zona = zn==='TOTAL'?'Total País':zn;
-  return `${yr==='ambos'?'2025+2026':yr} · ${mn[ms]} · ${zona}`;
-}
-function prevPeriodKey(){
-  // Previous = one month back, same year. If month 0 (acum), previous year acum.
-  if(ms===0) return `${parseInt(yr)-1}_0_${zn}`;
-  if(ms===1) return `${parseInt(yr)-1}_12_${zn}`; // Dec prev year
-  return `${yr}_${ms-1}_${zn}`;
-}
-function prevPeriodLabel(){
-  const mn=['Acumulado','Enero','Febrero','Marzo','Abril','Mayo','Junio',
-            'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const {yr:py,ms:pm}=(()=>{
-    if(ms===0)return{yr:parseInt(yr)-1,ms:0};
-    if(ms===1)return{yr:parseInt(yr)-1,ms:12};
-    return{yr,ms:ms-1};
-  })();
-  const zona=zn==='TOTAL'?'Total País':zn;
-  return `${py} · ${mn[pm]} · ${zona}`;
-}
-
-function getHistory(){
-  try{return JSON.parse(localStorage.getItem(HIST_KEY)||'[]');}
-  catch{return[];}
-}
-function saveHistory(arr){
-  try{localStorage.setItem(HIST_KEY,JSON.stringify(arr));}
-  catch(e){console.warn('Could not save history:',e);}
-}
-function getEntryForPeriod(key){
-  return getHistory().find(e=>e.periodKey===key)||null;
-}
-
-function zId(z){return z.replace(/\s+/g,'_').replace(/[^a-zA-Z0-9_]/g,'X');}
-
-function buildAnalysisPanel(){
-  const kpiKeys=['bpp','conv','vpp','rp_pct'];
-  document.getElementById('kpiComments').innerHTML=kpiKeys.map(k=>`
-    <div class="kpi-cmnt">
-      <div class="kpi-cmnt-head" onclick="toggleAccordion('kpiBody_${k}',this)">
-        ${KPI_LABELS[k]} <span class="arr">▶</span>
-      </div>
-      <div class="kpi-cmnt-body" id="kpiBody_${k}">
-        <textarea id="kpiTxt_${k}" rows="3" placeholder="Análisis de ${KPI_LABELS[k]}..."></textarea>
-      </div>
-    </div>`).join('');
-
-  document.getElementById('zoneComments').innerHTML=ZONES.map(z=>`
-    <div class="zc-item">
-      <div class="zc-head" onclick="toggleAccordion('zBody_${zId(z)}',this)">
-        ${z} <span class="arr">▶</span>
-      </div>
-      <div class="zc-body" id="zBody_${zId(z)}">
-        <textarea id="zTxt_${zId(z)}" rows="3" placeholder="Comentario sobre ${z}..."></textarea>
-      </div>
-    </div>`).join('');
-
-  refreshPanelForPeriod();
-}
-
-function toggleAccordion(bodyId, head){
-  const body=document.getElementById(bodyId);
-  body.classList.toggle('open');
-  head.querySelector('.arr').textContent=body.classList.contains('open')?'▼':'▶';
-}
-
-function refreshPanelForPeriod(){
-  // Update period label
-  document.getElementById('periodLabel').textContent=periodLabel();
-  document.getElementById('anlSub').textContent='Guardado por período · historial completo';
-
-  // Load current period data into fields
-  const entry=getEntryForPeriod(periodKey());
-  clearFields();
-  if(entry) fillFields(entry);
-
-  // Show previous period peek
-  const prevKey=prevPeriodKey();
-  const prevEntry=getEntryForPeriod(prevKey);
-  const peek=document.getElementById('prevPeek');
-  document.getElementById('prevLabel').textContent=`◀ ${prevPeriodLabel()}`;
-  if(prevEntry&&prevEntry.resumen){
-    document.getElementById('prevText').innerHTML=
-      `<strong style="color:var(--silver);font-size:10px;">Resumen:</strong><br>${escHtml(prevEntry.resumen)}`+
-      (prevEntry.notas?`<br><br><strong style="color:var(--silver);font-size:10px;">Notas:</strong><br>${escHtml(prevEntry.notas)}`:'');
-    peek.style.display='block';
-  } else {
-    document.getElementById('prevText').innerHTML=`<span class="prev-empty">Sin análisis guardado para ese período.</span>`;
-    peek.style.display='block';
-  }
-
-  renderHistory();
-}
-
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-
-function clearFields(){
-  document.getElementById('txtResumen').value='';
-  document.getElementById('txtNotas').value='';
-  ['bpp','conv','vpp','rp_pct'].forEach(k=>{
-    const el=document.getElementById('kpiTxt_'+k);if(el)el.value='';
-  });
-  ZONES.forEach(z=>{const el=document.getElementById('zTxt_'+zId(z));if(el)el.value='';});
-}
-
-function fillFields(entry){
-  if(entry.resumen)document.getElementById('txtResumen').value=entry.resumen;
-  if(entry.notas)document.getElementById('txtNotas').value=entry.notas;
-  if(entry.kpi)Object.entries(entry.kpi).forEach(([k,v])=>{
-    const el=document.getElementById('kpiTxt_'+k);if(el)el.value=v;
-  });
-  if(entry.zones)Object.entries(entry.zones).forEach(([z,v])=>{
-    const el=document.getElementById('zTxt_'+zId(z));if(el)el.value=v;
-  });
-}
-
-function getCurrentData(){
-  const kpi={};
-  ['bpp','conv','vpp','rp_pct'].forEach(k=>{kpi[k]=document.getElementById('kpiTxt_'+k)?.value||'';});
-  const zones={};
-  ZONES.forEach(z=>{zones[z]=document.getElementById('zTxt_'+zId(z))?.value||'';});
-  return{
-    periodKey:periodKey(), periodLabel:periodLabel(),
-    resumen:document.getElementById('txtResumen').value,
-    notas:document.getElementById('txtNotas').value,
-    kpi, zones,
-    savedAt:new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})
-  };
-}
-
-function saveAnalysis(){
-  const data=getCurrentData();
-  const hist=getHistory().filter(e=>e.periodKey!==data.periodKey); // remove old for same period
-  hist.unshift(data); // most recent first
-  saveHistory(hist.slice(0,50)); // keep max 50 entries
-  renderHistory();
-  const msg=document.getElementById('saveMsg');
-  msg.textContent='✓ Guardado — '+data.periodLabel;
-  setTimeout(()=>msg.textContent='',3000);
-}
-
-function renderHistory(){
-  const hist=getHistory();
-  const el=document.getElementById('histList');
-  if(!hist.length){
-    el.innerHTML='<div class="hist-empty">Todavía no hay análisis guardados.<br>Escribí algo y guardalo para verlo acá.</div>';
-    return;
-  }
-  el.innerHTML=hist.map((e,i)=>{
-    const excerpt=(e.resumen||e.notas||Object.values(e.kpi||{}).find(v=>v)||'Sin contenido').slice(0,120);
-    return`<div class="hist-item">
-      <div class="hist-item-head" onclick="toggleAccordion('histBody_${i}',this)">
-        <div>
-          <div class="hist-period">${escHtml(e.periodLabel)}</div>
-          <div class="hist-date">${e.savedAt}</div>
-        </div>
-        <span class="arr" style="color:var(--dim);font-size:10px;">▶</span>
-      </div>
-      <div class="hist-body" id="histBody_${i}">
-        <div class="hist-excerpt">${escHtml(excerpt)}${e.resumen&&e.resumen.length>120?'…':''}</div>
-        <div style="display:flex;gap:6px;margin-top:4px;">
-          <button class="hist-load-btn" onclick="loadFromHistory(${i})">↩ Cargar en panel</button>
-          <button class="hist-del-btn" onclick="deleteFromHistory(${i})">✕ Borrar</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function loadFromHistory(i){
-  const entry=getHistory()[i];
-  if(!entry)return;
-  fillFields(entry);
-  switchTab('write');
-  document.getElementById('saveMsg').textContent='↩ Análisis cargado desde historial';
-  setTimeout(()=>document.getElementById('saveMsg').textContent='',2500);
-}
-
-function deleteFromHistory(i){
-  if(!confirm('¿Borrar este análisis?'))return;
-  const hist=getHistory();
-  hist.splice(i,1);
-  saveHistory(hist);
-  renderHistory();
-}
-
-function switchTab(tab){
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['write','hist'][i]===tab));
-  document.getElementById('tabWrite').classList.toggle('active',tab==='write');
-  document.getElementById('tabHist').classList.toggle('active',tab==='hist');
-  if(tab==='hist')renderHistory();
-}
-
-function togglePanel(){
-  const panel=document.getElementById('anlPanel');
-  const btn=document.getElementById('anlToggle');
-  panel.classList.toggle('open');
-  btn.classList.toggle('active');
-  btn.textContent=panel.classList.contains('open')?'✕ Cerrar análisis':'✏ Análisis';
-}
-
-function exportAnalysis(){
-  const d=getCurrentData();
-  const lines=[
-    'MEDICIONES DE ZONAS — ANÁLISIS',
-    '='.repeat(50),
-    `Período: ${d.periodLabel}`,
-    `Guardado: ${d.savedAt}`,
-    '',
-    '── RESUMEN EJECUTIVO ──────────────────────────────',
-    d.resumen||'(sin contenido)',
-    '',
-    '── NOTAS GENERALES ────────────────────────────────',
-    d.notas||'(sin contenido)',
-    '',
-    '── ANÁLISIS POR KPI ───────────────────────────────',
-  ];
-  Object.entries(d.kpi).forEach(([k,v])=>{if(v){lines.push('');lines.push(KPI_LABELS[k]+':');lines.push(v);}});
-  lines.push('','── COMENTARIOS POR ZONA ───────────────────────────');
-  Object.entries(d.zones).forEach(([z,v])=>{if(v){lines.push('');lines.push(z+':');lines.push(v);}});
-  const blob=new Blob([lines.join('\n')],{type:'text/plain;charset=utf-8'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download=`analisis_mz_${d.periodKey}.txt`;
-  a.click();
-  URL.revokeObjectURL(a.href);
-}
-
-// ── Snapshot export ──────────────────────────────────────────────────────
-function exportSnapshot(){
-  if(!R){alert('Primero cargá el archivo Excel.');return;}
-
-  var allAnalysis = getHistory();
-  var currentData = getCurrentData();
-  var payload = {
-    generatedAt: new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
-    generatedBy: document.getElementById('ftag').textContent,
-    filters: {yr:yr, ms:ms, zn:zn},
-    data: R,
-    analysis: allAnalysis,
-    currentAnalysis: currentData
-  };
-
-  var src = document.documentElement.outerHTML;
-
-  var dataScript = '<scr'+'ipt>const SNAPSHOT_MODE=true;const SNAPSHOT_DATA='+JSON.stringify(payload)+';</'+'script>';
-
-  var initScript = '<scr'+'ipt>'
-    +'window.addEventListener("DOMContentLoaded",function(){'
-    +'  if(typeof SNAPSHOT_MODE==="undefined"||!SNAPSHOT_MODE)return;'
-    +'  document.getElementById("up").style.display="none";'
-    +'  document.getElementById("dash").style.display="block";'
-    +'  document.getElementById("ftag").textContent=SNAPSHOT_DATA.generatedBy;'
-    +'  var sZ=document.getElementById("sZ");'
-    +'  var ZS=["AMBA","Bahia Blanca","C\u00f3rdoba","Costa+Tandil","La Plata","Mendoza","Paran\u00e1","Pinamar","Rosario","San Luis","Santa Fe","Tucuman"];'
-    +'  sZ.innerHTML="<option value=\"TOTAL\">TOTAL Pa\u00eds</option>"+ZS.map(function(z){return"<option value=\""+z+"\">"+z+"</option>";}).join("");'  
-    +'  R=SNAPSHOT_DATA.data;'
-    +'  if(SNAPSHOT_DATA.filters){'
-    +'    document.getElementById("sY").value=SNAPSHOT_DATA.filters.yr;'
-    +'    document.getElementById("sM").value=SNAPSHOT_DATA.filters.ms;'
-    +'    document.getElementById("sZ").value=SNAPSHOT_DATA.filters.zn;'
-    +'  }'
-    +'  document.querySelectorAll(".save-btn,.snapshot-btn").forEach(function(b){b.style.display="none";});'
-    +'  var rb=document.querySelector(".rbtn");if(rb)rb.style.display="none";'
-    +'  window._snapAnalysis=SNAPSHOT_DATA.analysis||[];'
-    +'  window.getHistory=function(){return window._snapAnalysis;};'
-    +'  window.saveHistory=function(){};'
-    +'  buildAnalysisPanel();'
-    +'  go();'
-    +'  if(SNAPSHOT_DATA.analysis&&SNAPSHOT_DATA.analysis.length>0){'
-    +'    document.getElementById("anlPanel").classList.add("open");'
-    +'    document.getElementById("anlToggle").classList.add("active");'
-    +'    document.getElementById("anlToggle").textContent="\u2715 Cerrar an\u00e1lisis";'
-    +'  }'
-    +'});'
-    +'</'+'script>';
-
-  var banner = '<div style="background:#2e7fff;color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;">Snapshot · Generado el '+payload.generatedAt+' · Solo lectura</div>';
-
-  var snap = src;
-  snap = snap.replace('<div id="prog"></div>', banner+'<div id="prog"></div>');
-  snap = snap.replace('</body>', dataScript + initScript + '</body>');
-
-  var blob = new Blob([snap], {type:'text/html;charset=utf-8'});
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'MedicionesZonas_snapshot_'+periodKey().replace(/[^a-zA-Z0-9_]/g,'_')+'.html';
-  a.click();
-  URL.revokeObjectURL(a.href);
-
-  var msg=document.getElementById('saveMsg');
-  msg.textContent='Snapshot generado - listo para enviar';
-  setTimeout(function(){msg.textContent='';},3000);
-}
-
-// ── File loading ──────────────────────────────────────────────────────────
-function loadFile(file){
-  if(!file)return;
-  prog(5);document.getElementById('uerr').textContent='';
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      prog(12);
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      R=parseExcel(wb);
-      const sZ=document.getElementById('sZ');
-      sZ.innerHTML='<option value="TOTAL">TOTAL País</option>'+
-        ZONES.map(z=>`<option value="${z}">${z}</option>`).join('');
-      document.getElementById('ftag').textContent=file.name;
-      document.getElementById('up').style.display='none';
-      document.getElementById('dash').style.display='block';
-      buildAnalysisPanel();
-      setTimeout(()=>{bar.style.transition='none';prog(0);
-        setTimeout(()=>{bar.style.transition='width .25s';},50);},500);
-      go();
-    } catch(err){prog(0);document.getElementById('uerr').textContent='⚠ '+err.message;}
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function resetUp(){
-  document.getElementById('up').style.display='flex';
-  document.getElementById('dash').style.display='none';
-  // Close analysis panel
-  document.getElementById('anlPanel').classList.remove('open');
-  document.getElementById('anlToggle').classList.remove('active');
-  document.getElementById('anlToggle').textContent='✏ Análisis';
-  R=null;
-}
-
-// ── File input / drag & drop ──────────────────────────────────────────────
-document.getElementById('fi').addEventListener('change',e=>loadFile(e.target.files[0]));
-const dz=document.getElementById('dz');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag');});
-dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');loadFile(e.dataTransfer.files[0]);});
-dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.getElementById('fi').click();});
+  // Show current date in footer
+  document.getElementById('fdate').textContent =
+    new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'long', year:'numeric'}).toUpperCase();
 </script>
+
 </body>
 </html>
