@@ -351,7 +351,7 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
         <!-- View navigation -->
         <div class="main-nav">
           <div class="mnav active" onclick="switchView('monthly')" id="navMonthly">Resumen Mensual</div>
-          <div class="mnav" onclick="switchView('daily')" id="navDaily">Vista Diaria <span id="dailyBadge" style="display:none;font-size:9px;background:#29c99a18;color:var(--green);border:1px solid #29c99a30;padding:1px 6px;border-radius:4px;margin-left:4px;">●</span></div>
+          <div class="mnav" onclick="switchView('daily')" id="navDaily">Vista Diaria</div>
         </div>
 
         <!-- Monthly view -->
@@ -1039,28 +1039,47 @@ function setDRange(n){
   renderDaily();
 }
 
+function lastDataIdx(metric){
+  // Per-metric: find last index where TOTAL > 0 scanning backwards
+  const vals = RD.metrics[metric]?.['TOTAL'] || [];
+  for(let i = vals.length-1; i >= 0; i--){
+    if(vals[i] > 0) return i;
+  }
+  return -1;
+}
+
 function renderDaily(){
   if(!RD){ return; }
   const zone = document.getElementById('sDZ').value;
   const metric = document.getElementById('sDM').value;
 
-  // Slice to last N dates
-  const n = dRange === 0 ? RD.dates.length : Math.min(dRange, RD.dates.length);
-  const dates = RD.dates.slice(-n);
-  const vals = (RD.metrics[metric]?.[zone] || []).slice(-n);
+  // Find this metric's own last day with real data
+  const lastIdx = lastDataIdx(metric);
+  if(lastIdx < 0){
+    const el = document.getElementById('cDayLine');
+    if(el) el.closest('.card').querySelector('.sec span').textContent = metric + ' · Sin datos';
+    return;
+  }
+
+  // Trim to last real data point, then slice N days back from there
+  const allDates = RD.dates.slice(0, lastIdx+1);
+  const allVals  = (RD.metrics[metric]?.[zone] || []).slice(0, lastIdx+1);
+  const n = dRange === 0 ? allDates.length : Math.min(dRange, allDates.length);
+  const dates = allDates.slice(-n);
+  const vals  = allVals.slice(-n);
 
   renderDayLine(dates, vals, metric, zone);
-  renderWeekBar(metric, zone);
+  renderDayKPIs(lastIdx, zone);
   renderDayTable(dates, vals, metric, zone);
 
-  // Day picker
+  // Day picker — default to last date with data for this metric
   const dp = document.getElementById('dayPicker');
-  if(dp && !dp.value && dates.length){
-    const last = dates[dates.length-1];
+  if(dp){
+    const last = allDates[allDates.length-1];
     const [d,m,y] = last.split('/');
-    dp.value = `${y}-${m}-${d}`;
+    dp.value = y+'-'+m+'-'+d;
+    renderDayDetail();
   }
-  if(dp) renderDayDetail();
 }
 
 function renderDayLine(dates, vals, metric, zone){
@@ -1093,56 +1112,37 @@ function renderDayLine(dates, vals, metric, zone){
   });
 }
 
-function getWeeks(){
-  // Group dates into ISO weeks
-  const all = RD.dates;
-  const weeks = {};
-  all.forEach((d,i) => {
-    const [dd,mm,yy] = d.split('/');
-    const dt = new Date(+yy, +mm-1, +dd);
-    // ISO week number
-    const jan1 = new Date(dt.getFullYear(),0,1);
-    const wk = Math.ceil(((dt-jan1)/86400000 + jan1.getDay()+1)/7);
-    const key = yy+'-W'+String(wk).padStart(2,'0');
-    if(!weeks[key]) weeks[key] = {label:'Sem '+wk+' ('+d.slice(0,5)+')', indices:[]};
-    weeks[key].indices.push(i);
+function renderDayKPIs(lastIdx, zone){
+  const el = document.getElementById('dKPIRow');
+  if(!el) return;
+  const KPI_LIST = [
+    {m:'Visitas',     color:'var(--accent2)'},
+    {m:'Ventas Field',color:'var(--green)'},
+    {m:'Ventas RP',   color:'var(--amber)'},
+    {m:'Ventas RE',   color:'#e05a5a'}
+  ];
+  let h = '';
+  KPI_LIST.forEach(({m, color}) => {
+    const li = lastDataIdx(m);
+    if(li < 0){ h += `<div class="kcard"><div class="klbl">${m}</div><div class="kval" style="color:${color}">—</div><div class="kdelta">Sin datos</div></div>`; return; }
+    const vals = RD.metrics[m]?.[zone] || [];
+    const hoy = vals[li] || 0;
+    const ayer = li > 0 ? (vals[li-1] || 0) : 0;
+    const dv = ayer > 0 ? ((hoy - ayer)/ayer*100) : null;
+    const up = dv !== null && dv >= 0;
+    const badge = dv !== null
+      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
+      : '';
+    const fechaHoy = RD.dates[li] || '';
+    const fechaAyer = li > 0 ? RD.dates[li-1] : '';
+    h += `<div class="kcard">
+      <div class="klbl">${m}</div>
+      <div class="kval" style="color:${color};font-size:22px">${Math.round(hoy).toLocaleString('es')}</div>
+      <div class="kdelta">${badge} vs ${Math.round(ayer).toLocaleString('es')} (${fechaAyer||'—'})</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:4px;font-family:'IBM Plex Mono',monospace">${fechaHoy}</div>
+    </div>`;
   });
-  return Object.values(weeks).slice(-8); // last 8 weeks
-}
-
-function renderWeekBar(metric, zone){
-  const ctx = document.getElementById('cWeekBar')?.getContext('2d');
-  if(!ctx) return;
-  if(cWeekBar) cWeekBar.destroy();
-  const allVals = RD.metrics[metric]?.[zone] || [];
-  const weeks = getWeeks();
-  const labels = weeks.map(w => w.label);
-  const totals = weeks.map(w => w.indices.reduce((s,i) => s+(allVals[i]||0), 0));
-  // Color last week differently
-  const colors = totals.map((_,i) => i===totals.length-1 ? '#2e7fff' : '#2e7fff55');
-  cWeekBar = new Chart(ctx, {
-    type: 'bar',
-    data: { labels, datasets: [{
-      label: metric,
-      data: totals,
-      backgroundColor: colors,
-      borderColor: colors.map(c => c.replace('55','ff')),
-      borderWidth: 1, borderRadius: 4
-    }]},
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{backgroundColor:'#131923',borderColor:'#1f2d42',borderWidth:1,
-          titleColor:'#6e8ca8',bodyColor:'#dce8f4',
-          callbacks:{label:c => ' '+Math.round(c.raw).toLocaleString('es')}}
-      },
-      scales:{
-        x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},maxRotation:30}},
-        y:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:10}}}
-      }
-    }
-  });
+  el.innerHTML = h;
 }
 
 function renderDayTable(dates, vals, metric, zone){
@@ -1208,7 +1208,7 @@ function buildDailyView(){
     </div>`;
     return;
   }
-  document.getElementById('dailyBadge').style.display = 'inline';
+
   const lastDate = RD.dates[RD.dates.length-1] || '';
 
   document.getElementById('dailyContent').innerHTML = `
@@ -1231,21 +1231,20 @@ function buildDailyView(){
       </select>
     </div>
 
+    <div class="krow" id="dKPIRow" style="margin-bottom:18px"></div>
+
     <div class="g2" style="margin-bottom:14px">
       <div class="card full">
-        <div class="sec"><span>Evolución Diaria</span>
-          <span style="font-size:9px;color:var(--dim)">Último dato: ${lastDate}</span>
+        <div class="sec">
+          <span id="dLineTitle">Evolución Diaria</span>
+          <span style="font-size:9px;color:var(--dim)" id="dLastDate">Último dato: ${lastDate}</span>
         </div>
         <div class="cw h220"><canvas id="cDayLine"></canvas></div>
       </div>
     </div>
 
     <div class="g2" style="margin-bottom:14px">
-      <div class="card">
-        <div class="sec">Semana a Semana</div>
-        <div class="cw h200"><canvas id="cWeekBar"></canvas></div>
-      </div>
-      <div class="card">
+      <div class="card full">
         <div class="sec">
           <span>Detalle por Fecha</span>
           <input type="date" id="dayPicker" onchange="renderDayDetail()" style="font-size:10px;padding:4px 8px;">
