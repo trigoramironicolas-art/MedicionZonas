@@ -589,12 +589,17 @@ function getV(y,z,k){
   return(monZ(y,z)[ms-1]||{})[k]??null;
 }
 function aggK(monthly,k,n){
-  const nk={bpp:'vb',conv:'re',vpp:'vb',rp_pct:'rp'}[k],dk={bpp:'fte',conv:'vis',vpp:'vis',rp_pct:'vb'}[k];
+  const nk={bpp:'vis',conv:'re',vpp:'vb',rp_pct:'rp'}[k],dk={bpp:'fte',conv:'vis',vpp:'fte',rp_pct:'vb'}[k];
   if(nk){let num=0,den=0;monthly.slice(0,n).forEach(d=>{if(d){num+=d[nk]||0;den+=d[dk]||0;}});return den?+(num/den).toFixed(4):null;}
   return monthly.slice(0,n).reduce((s,d)=>s+(d?d[k]||0:0),0);
 }
-function delt(c,p){
+function delt(c,p,isPp=false){
+  // isPp=true → values are ratios (0-1), show difference as percentage points
   if(c==null||p==null||p===0)return'';
+  if(isPp){
+    const pp=((c-p)*100).toFixed(1),up=parseFloat(pp)>=0;
+    return`<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(pp)}pp</span>`;
+  }
   const pct=((c-p)/Math.abs(p)*100).toFixed(1),up=parseFloat(pct)>=0;
   return`<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>`;
 }
@@ -628,8 +633,8 @@ function renderKPIs(){
       const m26=monZ('2026',zn),m25=monZ('2025',zn);
       if(ms===0){
         const a26=aggK(m26,cc.k,R.n26),a25=aggK(m25.slice(0,R.n26),cc.k,R.n26);
-        dH=delt(a26,a25)+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
-      } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k));}
+        dH=delt(a26,a25,cc.k==='conv'||cc.k==='rp_pct')+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
+      } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k),cc.k==='conv'||cc.k==='rp_pct');}
     }
     return`<div class="kcard ${cc.c}"><div class="klbl">${cc.l}</div>
       <div class="kval">${fmt[cc.k](v)}</div>
@@ -705,7 +710,7 @@ function renderTable(){
       <td><div class="bw"><div class="mb" style="width:${bw}px"></div>${fmt.vis(d.vis)}</div></td>
       <td>${fmt.fte(d.fte)}</td><td>${fmt.vb(d.vb)}</td><td>${fmt.re(d.re)}</td><td>${fmt.rp(d.rp)}</td>
       <td>${fmt.bpp(d.bpp)}</td>${dp?`<td style="color:var(--dim)">${fmt.bpp(dp.bpp)}</td><td>${delt(d.bpp,dp.bpp)}</td>`:''}
-      <td>${fmt.conv(d.conv)}</td>${dp?`<td style="color:var(--dim)">${fmt.conv(dp.conv)}</td><td>${delt(d.conv,dp.conv)}</td>`:''}
+      <td>${fmt.conv(d.conv)}</td>${dp?`<td style="color:var(--dim)">${fmt.conv(dp.conv)}</td><td>${delt(d.conv,dp.conv,true)}</td>`:''}
       <td>${fmt.vpp(d.vpp)}</td><td>${fmt.rp_pct(d.rp_pct)}</td></tr>`;
   }
   const tt={vis:0,vb:0,re:0,rp:0,fte:0};
@@ -1183,13 +1188,18 @@ function renderDKPICards(zone, lastIdx){
     const wow = kpWow?.[key] || 0;
     // Delta: for negative values, improvement = moving toward 0 (less negative = up)
     let dv = null, up = false;
+    const isPct = (key === 'conv' || key === 'prod'); // already-% KPIs
     if(kpWow && wow !== 0){
-      dv = (hoy - wow) / Math.abs(wow) * 100;
-      // "up" means improvement: for positive metrics higher=better, for negatives closer to 0 = better
-      up = hoy >= 0 ? dv >= 0 : hoy > wow; // if both negative, higher (less negative) is better
+      dv = isPct
+        ? (hoy - wow)                          // pp difference for % KPIs
+        : (hoy - wow) / Math.abs(wow) * 100;  // % change for absolute KPIs
+      up = hoy >= 0 ? dv >= 0 : hoy > wow;
     }
+    const dvLabel = dv !== null
+      ? (isPct ? Math.abs(dv).toFixed(1)+'pp' : Math.abs(dv).toFixed(1)+'%')
+      : '';
     const badge = dv !== null
-      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
+      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${dvLabel}</span>`
       : '';
     h += `<div class="kcard" style="min-width:0">
       <div class="klbl">${label}</div>
@@ -1274,10 +1284,13 @@ function renderDTable(dates, series, zone, startI){
       const fmtFn = (key==='conv'||key==='prod') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(2)) : (x=>Math.round(x).toLocaleString('es'));
       let dh = '';
       if(kpWow && wv !== 0){
-        const dv = (v - wv) / Math.abs(wv) * 100;
-        // Improvement logic: positives → higher better; negatives → less negative better
+        const isPctKey = (key === 'conv' || key === 'prod');
+        const dv = isPctKey
+          ? (v - wv)
+          : (v - wv) / Math.abs(wv) * 100;
         const up = v >= 0 ? dv >= 0 : v > wv;
-        dh = `<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(0)}%</span>`;
+        const dvLbl = isPctKey ? Math.abs(dv).toFixed(1)+'pp' : Math.abs(dv).toFixed(0)+'%';
+        dh = `<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${dvLbl}</span>`;
       }
       h += `<td>${fmtFn(v)}${dh}</td>`;
     });
@@ -1367,9 +1380,9 @@ function buildDailyView(){
 function exportSnapshot(){
   if(!R){alert('Primero cargá el archivo Excel.');return;}
 
-  var allAnalysis = getHistory();
-  var currentData = getCurrentData();
-  var payload = {
+  const allAnalysis = getHistory();
+  const currentData = getCurrentData();
+  const payload = {
     generatedAt: new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
     generatedBy: document.getElementById('ftag').textContent,
     filters: {yr:yr, ms:ms, zn:zn},
@@ -1378,11 +1391,11 @@ function exportSnapshot(){
     currentAnalysis: currentData
   };
 
-  var src = document.documentElement.outerHTML;
+  const src = document.documentElement.outerHTML;
 
-  var dataScript = '<scr'+'ipt>const SNAPSHOT_MODE=true;const SNAPSHOT_DATA='+JSON.stringify(payload)+';</'+'script>';
+  const dataScript = '<scr'+'ipt>const SNAPSHOT_MODE=true;const SNAPSHOT_DATA='+JSON.stringify(payload)+';</'+'script>';
 
-  var initScript = '<scr'+'ipt>'
+  const initScript = '<scr'+'ipt>'
     +'window.addEventListener("DOMContentLoaded",function(){'
     +'  if(typeof SNAPSHOT_MODE==="undefined"||!SNAPSHOT_MODE)return;'
     +'  document.getElementById("up").style.display="none";'
@@ -1412,20 +1425,20 @@ function exportSnapshot(){
     +'});'
     +'</'+'script>';
 
-  var banner = '<div style="background:#2e7fff;color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;">Snapshot · Generado el '+payload.generatedAt+' · Solo lectura</div>';
+  const banner = '<div style="background:#2e7fff;color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;">Snapshot · Generado el '+payload.generatedAt+' · Solo lectura</div>';
 
-  var snap = src;
+  let snap = src;
   snap = snap.replace('<div id="prog"></div>', banner+'<div id="prog"></div>');
   snap = snap.replace('</body>', dataScript + initScript + '</body>');
 
-  var blob = new Blob([snap], {type:'text/html;charset=utf-8'});
-  var a = document.createElement('a');
+  const blob = new Blob([snap], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = 'MedicionesZonas_snapshot_'+periodKey().replace(/[^a-zA-Z0-9_]/g,'_')+'.html';
   a.click();
   URL.revokeObjectURL(a.href);
 
-  var msg=document.getElementById('saveMsg');
+  const msg=document.getElementById('saveMsg');
   msg.textContent='Snapshot generado - listo para enviar';
   setTimeout(function(){msg.textContent='';},3000);
 }
