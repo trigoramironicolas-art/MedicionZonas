@@ -980,7 +980,41 @@ function exportAnalysis(){
 
 // ── Daily View ────────────────────────────────────────────────────────────
 let RD = null;
-let dRange = 30, cDayMulti = null;
+let dRange = 30, cDayMulti = null, dCmpMode = 'yday';
+
+function setCmp(mode){
+  dCmpMode = mode;
+  document.getElementById('cmpYday')?.classList.toggle('active', mode==='yday');
+  document.getElementById('cmpWow')?.classList.toggle('active', mode==='wow');
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  renderDKPICards(zone, getDayPickIdx());
+}
+
+function getDayPickIdx(){
+  const sel = document.getElementById('dDayPick');
+  return sel ? +sel.value : lastDataIdxForZone(document.getElementById('dZone')?.value||'TOTAL');
+}
+
+function populateDayPicker(lastIdx){
+  const sel = document.getElementById('dDayPick');
+  if(!sel) return;
+  sel.innerHTML = '';
+  // Show last 30 days with data, most recent first
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  const vis = RD.raw_m['Visitas']?.[zone] || [];
+  const vf  = RD.raw_m['Ventas Field']?.[zone] || [];
+  let count = 0;
+  for(let i=lastIdx; i>=0 && count<30; i--){
+    if((vis[i]||0)>0 || (vf[i]||0)>0){
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = fullDateLabel(RD.dates[i]);
+      if(i===lastIdx) opt.selected = true;
+      sel.appendChild(opt);
+      count++;
+    }
+  }
+}
 
 const DAILY_METRIC_ROWS = {
   'Visitas':6,'Ventas Field':19,'Ventas Netas Field':33,
@@ -1110,7 +1144,8 @@ function renderDaily(){
     D_KPI_CFG.forEach(k => series[k.key].push(kp[k.key]));
   }
 
-  renderDKPICards(zone, lastIdx);
+  populateDayPicker(lastIdx);
+  renderDKPICards(zone, getDayPickIdx());
   renderDMultiLine(dates, series);
   renderDTable(dates, series, zone, startI);
 }
@@ -1119,11 +1154,15 @@ function renderDKPICards(zone, lastIdx){
   const el = document.getElementById('dKPIRow');
   if(!el) return;
 
-  const wowIdx = idxSameWeekdayBefore(lastIdx); // same weekday previous week
+  // Comparison index depends on mode
+  const cmpIdx = dCmpMode === 'wow'
+    ? idxSameWeekdayBefore(lastIdx)
+    : (lastIdx > 0 ? lastIdx - 1 : -1);
   const kpHoy = dailyKPIs(zone, lastIdx);
-  const kpWow = wowIdx >= 0 ? dailyKPIs(zone, wowIdx) : null;
+  const kpWow = cmpIdx >= 0 ? dailyKPIs(zone, cmpIdx) : null;
   const fechaHoy = RD.dates[lastIdx] || '';
-  const fechaWow = wowIdx >= 0 ? RD.dates[wowIdx] : '';
+  const fechaWow = cmpIdx >= 0 ? RD.dates[cmpIdx] : '';
+  const cmpLabel = dCmpMode === 'wow' ? 'WoW' : 'ant';
 
   const CARDS = [
     {key:'vis',  label:'Visitas',      fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--accent2)', signed:false},
@@ -1154,7 +1193,7 @@ function renderDKPICards(zone, lastIdx){
       <div class="kval" style="color:${color};font-size:20px;line-height:1.1">${fmt(hoy)}</div>
       <div class="kdelta">${badge} vs ${fmt(wow)}</div>
       <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">
-        ${fullDateLabel(fechaHoy)} · WoW: ${fechaWow ? fullDateLabel(fechaWow) : '—'}
+        ${fullDateLabel(fechaHoy)} · ${cmpLabel}: ${fechaWow ? fullDateLabel(fechaWow) : '—'}
       </div>
     </div>`;
   });
@@ -1272,13 +1311,18 @@ function buildDailyView(){
           ${zoneOpts}
         </select>
         <div class="dsep"></div>
-        <span class="dctl-label">Rango</span>
-        <button class="drange-btn" data-n="7" onclick="setDRange(7)">7 días</button>
-        <button class="drange-btn active" data-n="30" onclick="setDRange(30)">30 días</button>
-        <button class="drange-btn" data-n="60" onclick="setDRange(60)">60 días</button>
-        <button class="drange-btn" data-n="0" onclick="setDRange(0)">Todo</button>
+        <span class="dctl-label">Día</span>
+        <select id="dDayPick" onchange="renderDKPICards(document.getElementById('dZone').value, getDayPickIdx())" style="font-size:11px;padding:5px 9px;font-family:'IBM Plex Mono',monospace"></select>
         <div class="dsep"></div>
-        <span style="font-size:9px;color:var(--dim);font-family:'IBM Plex Mono',monospace">Último dato: ${lastDate}</span>
+        <span class="dctl-label">Comparar vs</span>
+        <button class="drange-btn active" id="cmpYday" onclick="setCmp('yday')">Día anterior</button>
+        <button class="drange-btn" id="cmpWow" onclick="setCmp('wow')">Semana ant.</button>
+        <div class="dsep"></div>
+        <span class="dctl-label">Rango gráfico</span>
+        <button class="drange-btn" data-n="7" onclick="setDRange(7)">7d</button>
+        <button class="drange-btn active" data-n="30" onclick="setDRange(30)">30d</button>
+        <button class="drange-btn" data-n="60" onclick="setDRange(60)">60d</button>
+        <button class="drange-btn" data-n="0" onclick="setDRange(0)">Todo</button>
       </div>
     </div>
 
