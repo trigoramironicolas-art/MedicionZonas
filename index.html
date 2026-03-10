@@ -932,63 +932,67 @@ function exportAnalysis(){
 function exportSnapshot(){
   if(!R){alert('Primero cargá el archivo Excel.');return;}
 
-  // Collect all saved analyses
-  const allAnalysis = getHistory();
-  // Also save current unsaved state for the current period
-  const currentData = getCurrentData();
-
-  // Build embedded data payload
-  const payload = {
+  var allAnalysis = getHistory();
+  var currentData = getCurrentData();
+  var payload = {
     generatedAt: new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
     generatedBy: document.getElementById('ftag').textContent,
-    filters: {yr, ms, zn},
+    filters: {yr:yr, ms:ms, zn:zn},
     data: R,
     analysis: allAnalysis,
     currentAnalysis: currentData
   };
 
-  // Get current HTML source and inject data + readonly mode
-  const src = document.documentElement.outerHTML;
+  var src = document.documentElement.outerHTML;
 
-  // Inject the snapshot payload and readonly flag right before </script> close
-  const injection = `
-<script id="snapshotPayload">
-const SNAPSHOT_MODE = true;
-const SNAPSHOT_DATA = ${JSON.stringify(payload)};
-<\/script>`;
+  var dataScript = '<scr'+'ipt>const SNAPSHOT_MODE=true;const SNAPSHOT_DATA='+JSON.stringify(payload)+';</'+'script>';
 
-  // Replace upload screen with auto-load + add banner
-  let snap = src;
+  var initScript = '<scr'+'ipt>'
+    +'window.addEventListener("DOMContentLoaded",function(){'
+    +'  if(typeof SNAPSHOT_MODE==="undefined"||!SNAPSHOT_MODE)return;'
+    +'  document.getElementById("up").style.display="none";'
+    +'  document.getElementById("dash").style.display="block";'
+    +'  document.getElementById("ftag").textContent=SNAPSHOT_DATA.generatedBy;'
+    +'  var sZ=document.getElementById("sZ");'
+    +'  var ZS=["AMBA","Bahia Blanca","C\u00f3rdoba","Costa+Tandil","La Plata","Mendoza","Paran\u00e1","Pinamar","Rosario","San Luis","Santa Fe","Tucuman"];'
+    +'  sZ.innerHTML="<option value=\"TOTAL\">TOTAL Pa\u00eds</option>"+ZS.map(function(z){return"<option value=\""+z+"\">"+z+"</option>";}).join("");'  
+    +'  R=SNAPSHOT_DATA.data;'
+    +'  if(SNAPSHOT_DATA.filters){'
+    +'    document.getElementById("sY").value=SNAPSHOT_DATA.filters.yr;'
+    +'    document.getElementById("sM").value=SNAPSHOT_DATA.filters.ms;'
+    +'    document.getElementById("sZ").value=SNAPSHOT_DATA.filters.zn;'
+    +'  }'
+    +'  document.querySelectorAll(".save-btn,.snapshot-btn").forEach(function(b){b.style.display="none";});'
+    +'  var rb=document.querySelector(".rbtn");if(rb)rb.style.display="none";'
+    +'  window._snapAnalysis=SNAPSHOT_DATA.analysis||[];'
+    +'  window.getHistory=function(){return window._snapAnalysis;};'
+    +'  window.saveHistory=function(){};'
+    +'  buildAnalysisPanel();'
+    +'  go();'
+    +'  if(SNAPSHOT_DATA.analysis&&SNAPSHOT_DATA.analysis.length>0){'
+    +'    document.getElementById("anlPanel").classList.add("open");'
+    +'    document.getElementById("anlToggle").classList.add("active");'
+    +'    document.getElementById("anlToggle").textContent="\u2715 Cerrar an\u00e1lisis";'
+    +'  }'
+    +'});'
+    +'</'+'script>';
 
-  // Add snap banner right after <body>
-  snap = snap.replace(
-    '<div id="prog"></div>',
-    `<div class="snap-banner">📤 Snapshot · Generado el ${payload.generatedAt} desde "${payload.generatedBy}" · Solo lectura</div>
-<div id="prog"></div>`
-  );
+  var banner = '<div style="background:#2e7fff;color:#fff;text-align:center;padding:8px 16px;font-size:12px;font-weight:600;">Snapshot · Generado el '+payload.generatedAt+' · Solo lectura</div>';
 
-  // Inject payload before closing </body>
-  snap = snap.replace('</body>', injection + '
-</body>');
+  var snap = src;
+  snap = snap.replace('<div id="prog"></div>', banner+'<div id="prog"></div>');
+  snap = snap.replace('</body>', dataScript + initScript + '</body>');
 
-  // Add auto-init script that runs on load
-  const autoInit = ``;
-
-  snap = snap.replace('</body>', autoInit + '
-</body>');
-
-  // Download
-  const blob = new Blob([snap], {type:'text/html;charset=utf-8'});
-  const a = document.createElement('a');
+  var blob = new Blob([snap], {type:'text/html;charset=utf-8'});
+  var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  const safePeriod = periodKey().replace(/[^a-zA-Z0-9_]/g,'_');
-  a.download = \`MedicionesZonas_snapshot_\${safePeriod}.html\`;
+  a.download = 'MedicionesZonas_snapshot_'+periodKey().replace(/[^a-zA-Z0-9_]/g,'_')+'.html';
   a.click();
   URL.revokeObjectURL(a.href);
 
-  const msg=document.getElementById('saveMsg');
-  msg.textContent='✓ Snapshot generado — listo para enviar';
-  setTimeout(()=>msg.textContent='',3000);
+  var msg=document.getElementById('saveMsg');
+  msg.textContent='Snapshot generado - listo para enviar';
+  setTimeout(function(){msg.textContent='';},3000);
 }
 
 // ── File loading ──────────────────────────────────────────────────────────
