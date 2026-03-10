@@ -979,50 +979,79 @@ function exportAnalysis(){
 
 
 // ── Daily View ────────────────────────────────────────────────────────────
-let RD = null; // daily data: { dates[], metrics:{ Visitas:{AMBA:[...], ...}, ... } }
-let dRange = 30, dDate = null, cDayLine, cWeekBar;
+let RD = null;
+let dRange = 30, cDayMulti = null;
 
-const DAILY_METRICS = ['Visitas','Ventas Field','Ventas Netas Field','Ventas Netas RP','FTE','Ventas RP','Ventas RE'];
 const DAILY_METRIC_ROWS = {
-  'Visitas':6, 'Ventas Field':19, 'Ventas Netas Field':33,
-  'Ventas Netas RP':47, 'FTE':61, 'Ventas RP':74, 'Ventas RE':88
+  'Visitas':6,'Ventas Field':19,'Ventas Netas Field':33,
+  'Ventas Netas RP':47,'FTE':61,'Ventas RP':74,'Ventas RE':88
 };
+const D_RAW_METRICS = ['Visitas','Ventas Field','Ventas RP','Ventas RE','FTE'];
+
+// Colors per KPI for multi-line chart
+const D_KPI_CFG = [
+  {key:'vis',   label:'Visitas',       color:'#2e7fff'},
+  {key:'vf',    label:'Ventas Field',  color:'#29c99a'},
+  {key:'rp',    label:'Ventas RP',     color:'#e0a729'},
+  {key:'re',    label:'Ventas RE',     color:'#e05a5a'},
+  {key:'conv',  label:'Conversión %',  color:'#7fbcff'},
+  {key:'bpp',   label:'BPP',           color:'#56d8b2'},
+  {key:'vpp',   label:'VPP',           color:'#f5d48e'},
+];
 
 function parseDailySheet(wb){
-  const sh = wb.SheetNames;
-  if(!sh.includes('Diario')) return null;
+  if(!wb.SheetNames.includes('Diario')) return null;
   const ws = wb.Sheets['Diario'];
   const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
 
-  // Row 4 (idx 4) = dates
+  // Row 5 (idx 4) = dates
   const dateRow = raw[4] || [];
-  const dates = [];
-  const colIdx = [];
-  for(let c=1; c<dateRow.length; c++){
-    const v = dateRow[c];
-    if(v && typeof v === 'string' && /\d{2}\/\d{2}\/\d{4}/.test(v)){
-      dates.push(v);
-      colIdx.push(c);
+  const dates = [], colIdx = [];
+  for(let ci=1; ci<dateRow.length; ci++){
+    const v = dateRow[ci];
+    if(v && typeof v==='string' && v.match(/\d{2}\/\d{2}\/\d{4}/)){
+      dates.push(v); colIdx.push(ci);
     }
   }
 
-  const metrics = {};
+  const raw_m = {};
   Object.entries(DAILY_METRIC_ROWS).forEach(([metric, startRow]) => {
-    metrics[metric] = {};
-    for(let zi=0; zi<12; zi++){
-      const rowData = raw[startRow + zi] || [];
-      const zone = rowData[0];
-      if(zone && ZONES.includes(zone)){
-        metrics[metric][zone] = colIdx.map(ci => parseFloat(rowData[ci])||0);
-      }
+    raw_m[metric] = {};
+    for(let zi=0;zi<12;zi++){
+      const row = raw[startRow+zi]||[];
+      const zone = row[0];
+      if(zone && ZONES.includes(zone))
+        raw_m[metric][zone] = colIdx.map(ci => parseFloat(row[ci])||0);
     }
-    // TOTAL
-    metrics[metric]['TOTAL'] = colIdx.map((ci,di) =>
-      ZONES.reduce((s,z) => s + (parseFloat((raw[startRow + ZONES.indexOf(z)] || [])[ci])||0), 0)
+    raw_m[metric]['TOTAL'] = colIdx.map((_,di) =>
+      ZONES.reduce((s,z) => s+(raw_m[metric][z]?.[di]||0), 0)
     );
   });
 
-  return { dates, colIdx, metrics };
+  return { dates, raw_m };
+}
+
+// For a zone+day, compute all KPIs
+function dailyKPIs(zone, idx){
+  const vis = RD.raw_m['Visitas']?.[zone]?.[idx] || 0;
+  const vf  = RD.raw_m['Ventas Field']?.[zone]?.[idx] || 0;
+  const rp  = RD.raw_m['Ventas RP']?.[zone]?.[idx] || 0;
+  const re  = RD.raw_m['Ventas RE']?.[zone]?.[idx] || 0;
+  const fte = RD.raw_m['FTE']?.[zone]?.[idx] || 0;
+  const conv = vis>0 ? vf/vis*100 : 0;
+  const bpp  = fte>0 ? vf/fte : 0;
+  const vpp  = vis>0 ? vf/vis : 0;
+  return {vis,vf,rp,re,fte,conv,bpp,vpp};
+}
+
+function lastDataIdxForZone(zone){
+  // Last index where Visitas OR Ventas Field has data for this zone
+  const vis = RD.raw_m['Visitas']?.[zone] || [];
+  const vf  = RD.raw_m['Ventas Field']?.[zone] || [];
+  for(let i=vis.length-1;i>=0;i--){
+    if((vis[i]||0)>0 || (vf[i]||0)>0) return i;
+  }
+  return -1;
 }
 
 function switchView(v){
@@ -1035,167 +1064,149 @@ function switchView(v){
 
 function setDRange(n){
   dRange = n;
-  document.querySelectorAll('.drange-btn').forEach(b => b.classList.toggle('active', +b.dataset.n===n));
+  document.querySelectorAll('.drange-btn').forEach(b=>b.classList.toggle('active',+b.dataset.n===n));
   renderDaily();
 }
 
-function lastDataIdx(metric){
-  // Per-metric: find last index where TOTAL > 0 scanning backwards
-  const vals = RD.metrics[metric]?.['TOTAL'] || [];
-  for(let i = vals.length-1; i >= 0; i--){
-    if(vals[i] > 0) return i;
-  }
-  return -1;
-}
-
 function renderDaily(){
-  if(!RD){ return; }
-  const zone = document.getElementById('sDZ').value;
-  const metric = document.getElementById('sDM').value;
+  if(!RD) return;
+  const zone = document.getElementById('dZone')?.value || 'TOTAL';
+  const lastIdx = lastDataIdxForZone(zone);
+  if(lastIdx < 0) return;
 
-  // Find this metric's own last day with real data
-  const lastIdx = lastDataIdx(metric);
-  if(lastIdx < 0){
-    const el = document.getElementById('cDayLine');
-    if(el) el.closest('.card').querySelector('.sec span').textContent = metric + ' · Sin datos';
-    return;
+  // Trim to last real data, then slice N
+  const totalDates = RD.dates.slice(0, lastIdx+1);
+  const n = dRange===0 ? totalDates.length : Math.min(dRange, totalDates.length);
+  const dates = totalDates.slice(-n);
+  const startI = lastIdx - n + 1;
+
+  // Build KPI series over that window
+  const series = {};
+  D_KPI_CFG.forEach(k => series[k.key] = []);
+  for(let i=startI; i<=lastIdx; i++){
+    const kp = dailyKPIs(zone, i);
+    D_KPI_CFG.forEach(k => series[k.key].push(kp[k.key]));
   }
 
-  // Trim to last real data point, then slice N days back from there
-  const allDates = RD.dates.slice(0, lastIdx+1);
-  const allVals  = (RD.metrics[metric]?.[zone] || []).slice(0, lastIdx+1);
-  const n = dRange === 0 ? allDates.length : Math.min(dRange, allDates.length);
-  const dates = allDates.slice(-n);
-  const vals  = allVals.slice(-n);
-
-  renderDayLine(dates, vals, metric, zone);
-  renderDayKPIs(lastIdx, zone);
-  renderDayTable(dates, vals, metric, zone);
-
-  // Day picker — default to last date with data for this metric
-  const dp = document.getElementById('dayPicker');
-  if(dp){
-    const last = allDates[allDates.length-1];
-    const [d,m,y] = last.split('/');
-    dp.value = y+'-'+m+'-'+d;
-    renderDayDetail();
-  }
+  renderDKPICards(zone, lastIdx);
+  renderDMultiLine(dates, series);
+  renderDTable(dates, series, zone, startI);
 }
 
-function renderDayLine(dates, vals, metric, zone){
-  const ctx = document.getElementById('cDayLine')?.getContext('2d');
+function renderDKPICards(zone, lastIdx){
+  const el = document.getElementById('dKPIRow');
+  if(!el) return;
+  const kpHoy  = dailyKPIs(zone, lastIdx);
+  const kpAyer = lastIdx>0 ? dailyKPIs(zone, lastIdx-1) : null;
+  const fechaHoy  = RD.dates[lastIdx] || '';
+  const fechaAyer = lastIdx>0 ? RD.dates[lastIdx-1] : '';
+
+  const CARDS = [
+    {key:'vis',  label:'Visitas',      fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--accent2)'},
+    {key:'vf',   label:'Ventas Field', fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--green)'},
+    {key:'rp',   label:'Ventas RP',    fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--amber)'},
+    {key:'re',   label:'Ventas RE',    fmt:v=>Math.round(v).toLocaleString('es'), color:'#e05a5a'},
+    {key:'conv', label:'Conversión',   fmt:v=>v.toFixed(1)+'%',                   color:'#7fbcff'},
+    {key:'bpp',  label:'BPP',          fmt:v=>v.toFixed(1),                       color:'#56d8b2'},
+    {key:'vpp',  label:'VPP',          fmt:v=>v.toFixed(1),                       color:'#f5d48e'},
+  ];
+
+  let h = '';
+  CARDS.forEach(({key,label,fmt,color})=>{
+    const hoy  = kpHoy[key]  || 0;
+    const ayer = kpAyer?.[key] || 0;
+    const dv   = ayer>0 ? (hoy-ayer)/ayer*100 : null;
+    const up   = dv!==null && dv>=0;
+    const badge = dv!==null
+      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
+      : '';
+    h += `<div class="kcard" style="min-width:0">
+      <div class="klbl">${label}</div>
+      <div class="kval" style="color:${color};font-size:20px;line-height:1.1">${fmt(hoy)}</div>
+      <div class="kdelta">${badge} vs ${fmt(ayer)}</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">${fechaHoy} · ant: ${fechaAyer}</div>
+    </div>`;
+  });
+  el.innerHTML = h;
+  // override grid to 7 cols
+  el.style.gridTemplateColumns = 'repeat(7,1fr)';
+}
+
+function renderDMultiLine(dates, series){
+  const ctx = document.getElementById('cDayMulti')?.getContext('2d');
   if(!ctx) return;
-  if(cDayLine) cDayLine.destroy();
-  // Shorten date labels
-  const labels = dates.map(d => d.slice(0,5));
-  cDayLine = new Chart(ctx, {
-    type: 'line',
-    data: { labels, datasets: [{
-      label: metric + ' · ' + zone,
-      data: vals,
-      borderColor: '#2e7fff',
-      backgroundColor: '#2e7fff12',
-      borderWidth: 2, pointRadius: 2, tension: .3, fill: true
-    }]},
-    options: {
+  if(cDayMulti) cDayMulti.destroy();
+  const labels = dates.map(d=>d.slice(0,5));
+
+  // Which KPIs to show — driven by checkboxes
+  const shown = D_KPI_CFG.filter(k=>{
+    const cb = document.getElementById('dkpi_'+k.key);
+    return cb ? cb.checked : true;
+  });
+
+  // Separate axes: count/units on left, % and ratios on right
+  const datasets = shown.map(k=>({
+    label: k.label,
+    data: series[k.key],
+    borderColor: k.color,
+    backgroundColor: k.color+'18',
+    borderWidth: 2, pointRadius: 1, tension: .3,
+    yAxisID: (k.key==='conv') ? 'yR' : 'yL',
+    fill: false
+  }));
+
+  cDayMulti = new Chart(ctx,{
+    type:'line',
+    data:{labels, datasets},
+    options:{
       responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
       plugins:{
-        legend:{display:false},
+        legend:{display:true,position:'top',
+          labels:{color:'#6e8ca8',font:{family:"'IBM Plex Sans'",size:10},boxWidth:12,padding:12}},
         tooltip:{backgroundColor:'#131923',borderColor:'#1f2d42',borderWidth:1,
-          titleColor:'#6e8ca8',bodyColor:'#dce8f4',bodyFont:{family:"'IBM Plex Mono'",size:11}}
+          titleColor:'#6e8ca8',bodyColor:'#dce8f4',bodyFont:{family:"'IBM Plex Mono'",size:10}}
       },
       scales:{
-        x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},maxTicksLimit:14}},
-        y:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:10}}}
+        x:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},maxTicksLimit:16}},
+        yL:{grid:{color:'#1f2d42'},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9}},position:'left'},
+        yR:{grid:{display:false},ticks:{color:'#344d66',font:{family:"'IBM Plex Mono'",size:9},callback:v=>v.toFixed(0)+'%'},position:'right',display: shown.some(k=>k.key==='conv')}
       }
     }
   });
 }
 
-function renderDayKPIs(lastIdx, zone){
-  const el = document.getElementById('dKPIRow');
+function renderDTable(dates, series, zone, startI){
+  const el = document.getElementById('dTable');
   if(!el) return;
-  const KPI_LIST = [
-    {m:'Visitas',     color:'var(--accent2)'},
-    {m:'Ventas Field',color:'var(--green)'},
-    {m:'Ventas RP',   color:'var(--amber)'},
-    {m:'Ventas RE',   color:'#e05a5a'}
-  ];
-  let h = '';
-  KPI_LIST.forEach(({m, color}) => {
-    const li = lastDataIdx(m);
-    if(li < 0){ h += `<div class="kcard"><div class="klbl">${m}</div><div class="kval" style="color:${color}">—</div><div class="kdelta">Sin datos</div></div>`; return; }
-    const vals = RD.metrics[m]?.[zone] || [];
-    const hoy = vals[li] || 0;
-    const ayer = li > 0 ? (vals[li-1] || 0) : 0;
-    const dv = ayer > 0 ? ((hoy - ayer)/ayer*100) : null;
-    const up = dv !== null && dv >= 0;
-    const badge = dv !== null
-      ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
-      : '';
-    const fechaHoy = RD.dates[li] || '';
-    const fechaAyer = li > 0 ? RD.dates[li-1] : '';
-    h += `<div class="kcard">
-      <div class="klbl">${m}</div>
-      <div class="kval" style="color:${color};font-size:22px">${Math.round(hoy).toLocaleString('es')}</div>
-      <div class="kdelta">${badge} vs ${Math.round(ayer).toLocaleString('es')} (${fechaAyer||'—'})</div>
-      <div style="font-size:9px;color:var(--dim);margin-top:4px;font-family:'IBM Plex Mono',monospace">${fechaHoy}</div>
-    </div>`;
-  });
-  el.innerHTML = h;
-}
+  const n = Math.min(21, dates.length);
+  const sl = dates.slice(-n);
+  const offsets = Array.from({length:n},(_,i)=>dates.length-n+i);
 
-function renderDayTable(dates, vals, metric, zone){
-  const el = document.getElementById('dDayTable');
-  if(!el) return;
-  // Show last 14 days in table
-  const n = Math.min(14, dates.length);
-  const sl_dates = dates.slice(-n);
-  const sl_vals = vals.slice(-n);
-  let h = '<thead><tr><th style="text-align:left">Fecha</th><th>'+metric+'</th><th>Var. día ant.</th></tr></thead><tbody>';
-  sl_dates.forEach((d,i) => {
-    const v = sl_vals[i];
-    const prev = i>0 ? sl_vals[i-1] : null;
-    let dh = '—';
-    if(prev!=null && prev>0){
-      const pct = ((v-prev)/prev*100).toFixed(1);
-      const up = parseFloat(pct)>=0;
-      dh = `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(pct)}%</span>`;
-    }
-    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:11px">${d}</td>
-      <td>${Math.round(v).toLocaleString('es')}</td><td>${dh}</td></tr>`;
+  let h = '<thead><tr><th style="text-align:left">Fecha</th>';
+  D_KPI_CFG.forEach(k=>{ h+=`<th>${k.label}</th>`; });
+  h += '</tr></thead><tbody>';
+
+  sl.forEach((date, i)=>{
+    const absI = startI + offsets[i];
+    const kp = dailyKPIs(zone, absI);
+    const prev = absI>0 ? dailyKPIs(zone, absI-1) : null;
+    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:10px">${date}</td>`;
+    D_KPI_CFG.forEach(({key,fmt})=>{
+      const v = kp[key]||0;
+      const pv = prev?.[key]||0;
+      const fmtFn = (key==='conv') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(1)) : (x=>Math.round(x).toLocaleString('es'));
+      let dh='';
+      if(prev && pv>0){
+        const dv=(v-pv)/pv*100;
+        const up=dv>=0;
+        dh=`<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(0)}%</span>`;
+      }
+      h+=`<td>${fmtFn(v)}${dh}</td>`;
+    });
+    h += '</tr>';
   });
   h += '</tbody>';
-  el.innerHTML = h;
-}
-
-function renderDayDetail(){
-  const dp = document.getElementById('dayPicker');
-  const el = document.getElementById('dDayDetail');
-  if(!dp || !el || !RD) return;
-  const val = dp.value; // yyyy-mm-dd
-  if(!val) return;
-  const [y,m,d] = val.split('-');
-  const target = d+'/'+m+'/'+y;
-  const idx = RD.dates.indexOf(target);
-  const metric = document.getElementById('sDM').value;
-  if(idx === -1){
-    el.innerHTML = '<div style="color:var(--dim);font-size:11px;padding:8px 0">Sin datos para esa fecha.</div>';
-    return;
-  }
-  const sorted = [...ZONES].map(z => ({
-    z, v: RD.metrics[metric]?.[z]?.[idx]||0
-  })).sort((a,b) => b.v-a.v);
-  const max = sorted[0]?.v||1;
-  let h = '<table><thead><tr><th style="text-align:left">Zona</th><th>'+metric+'</th></tr></thead><tbody>';
-  sorted.forEach(({z,v}) => {
-    const bw = Math.round(v/max*50);
-    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Sans',sans-serif;font-size:11px">${z}</td>
-      <td><div class="bw"><div class="mb" style="width:${bw}px;background:var(--accent)"></div>${Math.round(v).toLocaleString('es')}</div></td></tr>`;
-  });
-  // Total
-  const tot = ZONES.reduce((s,z) => s+(RD.metrics[metric]?.[z]?.[idx]||0),0);
-  h += `<tr class="ttot"><td>TOTAL</td><td>${Math.round(tot).toLocaleString('es')}</td></tr></tbody></table>`;
   el.innerHTML = h;
 }
 
@@ -1210,54 +1221,63 @@ function buildDailyView(){
   }
 
   const lastDate = RD.dates[RD.dates.length-1] || '';
+  const zoneOpts = `<option value="TOTAL">TOTAL País</option>${ZONES.map(z=>`<option value="${z}">${z}</option>`).join('')}`;
+  const kpiToggles = D_KPI_CFG.map(k=>
+    `<label style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--sub);cursor:pointer;white-space:nowrap">
+      <input type="checkbox" id="dkpi_${k.key}" checked onchange="renderDMultiLine(lastRenderedDates,lastRenderedSeries)"
+        style="accent-color:${k.color}"> ${k.label}
+    </label>`
+  ).join('');
 
   document.getElementById('dailyContent').innerHTML = `
-    <div class="daily-controls">
-      <span class="dctl-label">Rango</span>
-      <button class="drange-btn" data-n="7" onclick="setDRange(7)">7 días</button>
-      <button class="drange-btn active" data-n="30" onclick="setDRange(30)">30 días</button>
-      <button class="drange-btn" data-n="60" onclick="setDRange(60)">60 días</button>
-      <button class="drange-btn" data-n="0" onclick="setDRange(0)">Todo</button>
-      <div class="dsep"></div>
-      <span class="dctl-label">Métrica</span>
-      <select id="sDM" onchange="renderDaily()" style="font-size:11px;padding:5px 9px;">
-        ${DAILY_METRICS.map(m => '<option value="'+m+'">'+m+'</option>').join('')}
-      </select>
-      <div class="dsep"></div>
-      <span class="dctl-label">Zona</span>
-      <select id="sDZ" onchange="renderDaily()" style="font-size:11px;padding:5px 9px;">
-        <option value="TOTAL">TOTAL País</option>
-        ${ZONES.map(z => '<option value="'+z+'">'+z+'</option>').join('')}
-      </select>
-    </div>
-
-    <div class="krow" id="dKPIRow" style="margin-bottom:18px"></div>
-
-    <div class="g2" style="margin-bottom:14px">
-      <div class="card full">
-        <div class="sec">
-          <span id="dLineTitle">Evolución Diaria</span>
-          <span style="font-size:9px;color:var(--dim)" id="dLastDate">Último dato: ${lastDate}</span>
-        </div>
-        <div class="cw h220"><canvas id="cDayLine"></canvas></div>
+    <div class="daily-controls" style="flex-wrap:wrap;gap:10px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span class="dctl-label">Zona</span>
+        <select id="dZone" onchange="renderDaily()" style="font-size:12px;padding:5px 9px;font-weight:600">
+          ${zoneOpts}
+        </select>
+        <div class="dsep"></div>
+        <span class="dctl-label">Rango</span>
+        <button class="drange-btn" data-n="7" onclick="setDRange(7)">7 días</button>
+        <button class="drange-btn active" data-n="30" onclick="setDRange(30)">30 días</button>
+        <button class="drange-btn" data-n="60" onclick="setDRange(60)">60 días</button>
+        <button class="drange-btn" data-n="0" onclick="setDRange(0)">Todo</button>
+        <div class="dsep"></div>
+        <span style="font-size:9px;color:var(--dim);font-family:'IBM Plex Mono',monospace">Último dato: ${lastDate}</span>
       </div>
     </div>
 
-    <div class="g2" style="margin-bottom:14px">
-      <div class="card full">
-        <div class="sec">
-          <span>Detalle por Fecha</span>
-          <input type="date" id="dayPicker" onchange="renderDayDetail()" style="font-size:10px;padding:4px 8px;">
-        </div>
-        <div id="dDayDetail" style="overflow-y:auto;max-height:190px"></div>
+    <!-- KPI summary cards -->
+    <div class="krow" id="dKPIRow" style="margin-bottom:18px;grid-template-columns:repeat(7,1fr)"></div>
+
+    <!-- Multi-line chart -->
+    <div class="card full" style="margin-bottom:14px">
+      <div class="sec">
+        <span>Evolución Diaria por KPI</span>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">${kpiToggles}</div>
       </div>
+      <div class="cw" style="height:260px"><canvas id="cDayMulti"></canvas></div>
     </div>
 
+    <!-- Detail table -->
     <div class="card full" style="margin-bottom:32px">
-      <div class="sec">Últimos 14 días · con variación diaria</div>
-      <div style="overflow-x:auto"><table id="dDayTable"></table></div>
+      <div class="sec">Detalle diario · últimos 21 días</div>
+      <div style="overflow-x:auto"><table id="dTable"></table></div>
     </div>
   `;
+
+  // Store last rendered data for toggle re-render
+  window.lastRenderedDates = [];
+  window.lastRenderedSeries = {};
+
+  // Patch renderDMultiLine to store last data
+  const origRender = renderDMultiLine;
+  renderDMultiLine = function(dates, series){
+    window.lastRenderedDates = dates;
+    window.lastRenderedSeries = series;
+    origRender(dates, series);
+  };
+
   renderDaily();
 }
 
