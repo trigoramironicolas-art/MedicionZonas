@@ -972,59 +972,7 @@ const SNAPSHOT_DATA = ${JSON.stringify(payload)};
 </body>');
 
   // Add auto-init script that runs on load
-  const autoInit = `
-<script>
-window.addEventListener('DOMContentLoaded', function(){
-  if(typeof SNAPSHOT_MODE !== 'undefined' && SNAPSHOT_MODE){
-    // Hide upload, show dashboard
-    document.getElementById('up').style.display='none';
-    document.getElementById('dash').style.display='block';
-    document.getElementById('ftag').textContent=SNAPSHOT_DATA.generatedBy;
-
-    // Restore data
-    R = SNAPSHOT_DATA.data;
-    // Fix numeric keys
-    if(R.zm25) Object.keys(R.zm25).forEach(z=>{R.zm25[z]=Object.values(R.zm25[z]);});
-    if(R.zm26) Object.keys(R.zm26).forEach(z=>{R.zm26[z]=Object.values(R.zm26[z]);});
-    if(R.zt25) {} if(R.zt26) {}
-
-    // Populate zone selector
-    const sZ=document.getElementById('sZ');
-    const ZS=['AMBA','Bahia Blanca','Córdoba','Costa+Tandil','La Plata','Mendoza','Paraná','Pinamar','Rosario','San Luis','Santa Fe','Tucuman'];
-    sZ.innerHTML='<option value="TOTAL">TOTAL País</option>'+ZS.map(z=>\`<option value="\${z}">\${z}</option>\`).join('');
-
-    // Restore saved filters
-    if(SNAPSHOT_DATA.filters){
-      document.getElementById('sY').value = SNAPSHOT_DATA.filters.yr;
-      document.getElementById('sM').value = SNAPSHOT_DATA.filters.ms;
-      document.getElementById('sZ').value = SNAPSHOT_DATA.filters.zn;
-    }
-
-    // Disable editing
-    document.body.classList.add('snap-readonly');
-    // Hide save/export buttons in snapshot
-    document.querySelectorAll('.save-btn,.snapshot-btn').forEach(b=>b.style.display='none');
-    document.querySelector('.rbtn') && (document.querySelector('.rbtn').style.display='none');
-
-    // Override localStorage to use snapshot data instead
-    window._snapAnalysis = SNAPSHOT_DATA.analysis || [];
-    const origGetHistory = window.getHistory;
-    window.getHistory = () => window._snapAnalysis;
-    window.saveHistory = () => {}; // no-op in snapshot
-
-    // Build panel with snapshot analyses
-    buildAnalysisPanel();
-    go();
-
-    // Auto-open analysis panel if there's content
-    if(SNAPSHOT_DATA.analysis && SNAPSHOT_DATA.analysis.length > 0){
-      document.getElementById('anlPanel').classList.add('open');
-      document.getElementById('anlToggle').classList.add('active');
-      document.getElementById('anlToggle').textContent='✕ Cerrar análisis';
-    }
-  }
-});
-<\/script>`;
+  const autoInit = ``;
 
   snap = snap.replace('</body>', autoInit + '
 </body>');
