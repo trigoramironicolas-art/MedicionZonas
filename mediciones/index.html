@@ -1044,8 +1044,30 @@ function dailyKPIs(zone, idx){
   return {vis,vf,rp,re,fte,conv,bpp,vpp};
 }
 
+// Parse dd/mm/yyyy → Date
+function parseDate(s){ const [d,m,y]=s.split('/'); return new Date(+y,+m-1,+d); }
+
+// Day name in Spanish
+const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+function dayLabel(dateStr){ return DIAS[parseDate(dateStr).getDay()]; }
+
+// dd/mm → display
+function shortDate(dateStr){ return dateStr.slice(0,5); }
+
+// Full label: "Mar 10/03"
+function fullDateLabel(dateStr){ return dayLabel(dateStr)+' '+shortDate(dateStr); }
+
+// Find index 7 days before a given index (same weekday)
+function idxSameWeekdayBefore(idx){
+  const target = parseDate(RD.dates[idx]).getDay();
+  for(let i=idx-1; i>=0; i--){
+    if(parseDate(RD.dates[i]).getDay() === target) return i;
+  }
+  return idx-1; // fallback to previous day
+}
+
 function lastDataIdxForZone(zone){
-  // Last index where Visitas OR Ventas Field has data for this zone
+  // Last index where Visitas OR Ventas Field has data > 0
   const vis = RD.raw_m['Visitas']?.[zone] || [];
   const vf  = RD.raw_m['Ventas Field']?.[zone] || [];
   for(let i=vis.length-1;i>=0;i--){
@@ -1096,39 +1118,47 @@ function renderDaily(){
 function renderDKPICards(zone, lastIdx){
   const el = document.getElementById('dKPIRow');
   if(!el) return;
-  const kpHoy  = dailyKPIs(zone, lastIdx);
-  const kpAyer = lastIdx>0 ? dailyKPIs(zone, lastIdx-1) : null;
-  const fechaHoy  = RD.dates[lastIdx] || '';
-  const fechaAyer = lastIdx>0 ? RD.dates[lastIdx-1] : '';
+
+  const wowIdx = idxSameWeekdayBefore(lastIdx); // same weekday previous week
+  const kpHoy = dailyKPIs(zone, lastIdx);
+  const kpWow = wowIdx >= 0 ? dailyKPIs(zone, wowIdx) : null;
+  const fechaHoy = RD.dates[lastIdx] || '';
+  const fechaWow = wowIdx >= 0 ? RD.dates[wowIdx] : '';
 
   const CARDS = [
-    {key:'vis',  label:'Visitas',      fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--accent2)'},
-    {key:'vf',   label:'Ventas Field', fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--green)'},
-    {key:'rp',   label:'Ventas RP',    fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--amber)'},
-    {key:'re',   label:'Ventas RE',    fmt:v=>Math.round(v).toLocaleString('es'), color:'#e05a5a'},
-    {key:'conv', label:'Conversión',   fmt:v=>v.toFixed(1)+'%',                   color:'#7fbcff'},
-    {key:'bpp',  label:'BPP',          fmt:v=>v.toFixed(1),                       color:'#56d8b2'},
-    {key:'vpp',  label:'VPP',          fmt:v=>v.toFixed(1),                       color:'#f5d48e'},
+    {key:'vis',  label:'Visitas',      fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--accent2)', signed:false},
+    {key:'vf',   label:'Ventas Field', fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--green)',   signed:false},
+    {key:'rp',   label:'Ventas RP',    fmt:v=>Math.round(v).toLocaleString('es'), color:'var(--amber)',   signed:false},
+    {key:'re',   label:'Ventas RE',    fmt:v=>Math.round(v).toLocaleString('es'), color:'#e05a5a',        signed:false},
+    {key:'conv', label:'Conversión',   fmt:v=>v.toFixed(1)+'%',                   color:'#7fbcff',        signed:false},
+    {key:'bpp',  label:'BPP',          fmt:v=>v.toFixed(1),                       color:'#56d8b2',        signed:false},
+    {key:'vpp',  label:'VPP',          fmt:v=>v.toFixed(1),                       color:'#f5d48e',        signed:false},
   ];
 
   let h = '';
   CARDS.forEach(({key,label,fmt,color})=>{
-    const hoy  = kpHoy[key]  || 0;
-    const ayer = kpAyer?.[key] || 0;
-    const dv   = ayer>0 ? (hoy-ayer)/ayer*100 : null;
-    const up   = dv!==null && dv>=0;
-    const badge = dv!==null
+    const hoy = kpHoy[key] || 0;
+    const wow = kpWow?.[key] || 0;
+    // Delta: for negative values, improvement = moving toward 0 (less negative = up)
+    let dv = null, up = false;
+    if(kpWow && wow !== 0){
+      dv = (hoy - wow) / Math.abs(wow) * 100;
+      // "up" means improvement: for positive metrics higher=better, for negatives closer to 0 = better
+      up = hoy >= 0 ? dv >= 0 : hoy > wow; // if both negative, higher (less negative) is better
+    }
+    const badge = dv !== null
       ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(1)}%</span>`
       : '';
     h += `<div class="kcard" style="min-width:0">
       <div class="klbl">${label}</div>
       <div class="kval" style="color:${color};font-size:20px;line-height:1.1">${fmt(hoy)}</div>
-      <div class="kdelta">${badge} vs ${fmt(ayer)}</div>
-      <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">${fechaHoy} · ant: ${fechaAyer}</div>
+      <div class="kdelta">${badge} vs ${fmt(wow)}</div>
+      <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">
+        ${fullDateLabel(fechaHoy)} · WoW: ${fechaWow ? fullDateLabel(fechaWow) : '—'}
+      </div>
     </div>`;
   });
   el.innerHTML = h;
-  // override grid to 7 cols
   el.style.gridTemplateColumns = 'repeat(7,1fr)';
 }
 
@@ -1136,7 +1166,7 @@ function renderDMultiLine(dates, series){
   const ctx = document.getElementById('cDayMulti')?.getContext('2d');
   if(!ctx) return;
   if(cDayMulti) cDayMulti.destroy();
-  const labels = dates.map(d=>d.slice(0,5));
+  const labels = dates.map(d=>fullDateLabel(d));
 
   // Which KPIs to show — driven by checkboxes
   const shown = D_KPI_CFG.filter(k=>{
@@ -1190,19 +1220,24 @@ function renderDTable(dates, series, zone, startI){
   sl.forEach((date, i)=>{
     const absI = startI + offsets[i];
     const kp = dailyKPIs(zone, absI);
-    const prev = absI>0 ? dailyKPIs(zone, absI-1) : null;
-    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:10px">${date}</td>`;
-    D_KPI_CFG.forEach(({key,fmt})=>{
-      const v = kp[key]||0;
-      const pv = prev?.[key]||0;
+    // Compare to same weekday last week
+    const wowI = idxSameWeekdayBefore(absI);
+    const kpWow = wowI >= 0 && wowI !== absI ? dailyKPIs(zone, wowI) : null;
+    const dayName = dayLabel(date);
+    h += `<tr><td style="text-align:left;color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:10px">
+      <span style="color:var(--sub)">${dayName}</span> ${shortDate(date)}</td>`;
+    D_KPI_CFG.forEach(({key})=>{
+      const v  = kp[key] || 0;
+      const wv = kpWow?.[key] || 0;
       const fmtFn = (key==='conv') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(1)) : (x=>Math.round(x).toLocaleString('es'));
-      let dh='';
-      if(prev && pv>0){
-        const dv=(v-pv)/pv*100;
-        const up=dv>=0;
-        dh=`<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(0)}%</span>`;
+      let dh = '';
+      if(kpWow && wv !== 0){
+        const dv = (v - wv) / Math.abs(wv) * 100;
+        // Improvement logic: positives → higher better; negatives → less negative better
+        const up = v >= 0 ? dv >= 0 : v > wv;
+        dh = `<br><span style="font-size:9px;color:${up?'var(--green)':'var(--red)'}">${up?'▲':'▼'}${Math.abs(dv).toFixed(0)}%</span>`;
       }
-      h+=`<td>${fmtFn(v)}${dh}</td>`;
+      h += `<td>${fmtFn(v)}${dh}</td>`;
     });
     h += '</tr>';
   });
