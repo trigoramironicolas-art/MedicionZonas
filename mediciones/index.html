@@ -1076,7 +1076,7 @@ function dailyKPIs(zone, idx){
   const conv = vis>0 ? re/vis*100 : 0;          // Conversión = RE / Visitas
   const bpp  = fte>0 ? vis/fte : 0;             // BPP = Visitas / FTE
   const vpp  = fte>0 ? vf/fte : 0;              // VPP = Ventas Field / FTE
-  const prod = vis>0 ? (re+rp)/vis : 0;         // Productividad = (RE+RP) / Visitas
+  const prod = vis>0 ? (re+rp)/vis*100 : 0;     // Productividad = (RE+RP) / Visitas %
   return {vis,vf,rp,re,fte,conv,bpp,vpp,prod};
 }
 
@@ -1174,7 +1174,7 @@ function renderDKPICards(zone, lastIdx){
     {key:'conv', label:'Conversión',     fmt:v=>v.toFixed(1)+'%',  color:'#7fbcff'},
     {key:'bpp',  label:'BPP (Vis/FTE)',  fmt:v=>v.toFixed(2),      color:'#56d8b2'},
     {key:'vpp',  label:'VPP (Vtas/FTE)', fmt:v=>v.toFixed(2),      color:'#f5d48e'},
-    {key:'prod', label:'Productividad',  fmt:v=>v.toFixed(2),      color:'#c084fc'},
+    {key:'prod', label:'Productividad',  fmt:v=>v.toFixed(1)+'%',  color:'#c084fc'},
   ];
 
   let h = '';
@@ -1271,7 +1271,7 @@ function renderDTable(dates, series, zone, startI){
     D_KPI_CFG.forEach(({key})=>{
       const v  = kp[key] || 0;
       const wv = kpWow?.[key] || 0;
-      const fmtFn = (key==='conv') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(1)) : (x=>Math.round(x).toLocaleString('es'));
+      const fmtFn = (key==='conv'||key==='prod') ? (x=>x.toFixed(1)+'%') : (key==='bpp'||key==='vpp') ? (x=>x.toFixed(2)) : (x=>Math.round(x).toLocaleString('es'));
       let dh = '';
       if(kpWow && wv !== 0){
         const dv = (v - wv) / Math.abs(wv) * 100;
