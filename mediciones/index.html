@@ -7,17 +7,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
 // ── Password ──────────────────────────────────────────────────────────────
 (function(){
-  const HASH = '8d78e76b822ee22ad47c4f0b9c5a3e2f3a8d1b0c'; // SHA-1 of password
-  // Password is: Planeamiento2026
-  // To change: compute SHA-1 of new password and replace HASH above
-  async function sha1(str){
-    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
-    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
-  }
-  window.checkPw = async function(){
+  const PW = 'Planeamiento2026';
+  window.checkPw = function(){
     const val = document.getElementById('pwInput').value;
-    const hash = await sha1(val);
-    if(hash === HASH){
+    if(val === PW){
       document.getElementById('pwScreen').style.display = 'none';
       sessionStorage.setItem('mz_auth','1');
     } else {
@@ -27,7 +20,6 @@
       setTimeout(()=>{ err.textContent=''; }, 2500);
     }
   };
-  // Auto-pass if already authenticated in this session
   if(sessionStorage.getItem('mz_auth') === '1'){
     document.addEventListener('DOMContentLoaded', ()=>{
       document.getElementById('pwScreen').style.display = 'none';
@@ -1590,3 +1582,4 @@ dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.get
 </script>
 </body>
 </html>
+
