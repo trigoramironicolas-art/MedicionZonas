@@ -269,11 +269,13 @@ tbody td.muted{color:var(--sub)}
         <option value="">Todas las zonas</option>
       </select>
       <select id="mEstado" onchange="renderMap()">
-        <option value="">Todos los estados</option>
-        <option value="ahead">Adelantado</option>
-        <option value="on">En ritmo</option>
-        <option value="behind">Atrasado</option>
-        <option value="zero">Sin visitas</option>
+        <option value="">Todos los clusters</option>
+        <option value="exc">Excelente</option>
+        <option value="muyb">Muy bueno</option>
+        <option value="bien">Bueno</option>
+        <option value="malo">Malo</option>
+        <option value="muym">Muy malo</option>
+        <option value="sinvis">Sin visitas</option>
       </select>
       <span class="results-count" id="mCount"></span>
     </div>
@@ -281,10 +283,12 @@ tbody td.muted{color:var(--sub)}
       <div id="mapEl"></div>
       <div class="map-overlay">
         <div class="map-legend">
-          <div class="map-legend-title">ESTADO</div>
-          <div class="map-legend-item"><div class="map-legend-dot" style="background:#29c99a"></div>Adelantado</div>
-          <div class="map-legend-item"><div class="map-legend-dot" style="background:#2e7fff"></div>En ritmo</div>
-          <div class="map-legend-item"><div class="map-legend-dot" style="background:#e0a729"></div>Atrasado</div>
+          <div class="map-legend-title">CLUSTER</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#29c99a"></div>Excelente</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#2e7fff"></div>Muy bueno</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#e0a729"></div>Bueno</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#e05a5a"></div>Malo</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#6b3232"></div>Muy malo</div>
           <div class="map-legend-item"><div class="map-legend-dot" style="background:#344d66"></div>Sin visitas</div>
         </div>
         <div class="map-stats" id="mapStats">—</div>
@@ -306,11 +310,13 @@ tbody td.muted{color:var(--sub)}
         <option value="">Todas las zonas</option>
       </select>
       <select id="oEstado" onchange="renderOTable()">
-        <option value="">Todos los estados</option>
-        <option value="ahead">Adelantado</option>
-        <option value="on">En ritmo</option>
-        <option value="behind">Atrasado</option>
-        <option value="zero">Sin visitas</option>
+        <option value="">Todos los clusters</option>
+        <option value="exc">Excelente</option>
+        <option value="muyb">Muy bueno</option>
+        <option value="bien">Bueno</option>
+        <option value="malo">Malo</option>
+        <option value="muym">Muy malo</option>
+        <option value="sinvis">Sin visitas</option>
       </select>
       <input id="oSearch" placeholder="Buscar CP, localidad, partido…" oninput="renderOTable()">
       <span class="results-count" id="oCount"></span>
@@ -451,21 +457,21 @@ function parseFile(wb){
   }
 
   // ── MASTERS table R37:H51 ──
+  const TERR_NAMES = new Set(['Ezequiel Limardo','Jonathan Kuvnat','Lucas Giocoli','Nicolas Chavez','Ignacio Chiesa']);
   const masters = [];
-  for(let r = 37; r <= 52; r++){
+  for(let r = 38; r <= 51; r++){
     const row = rtData[r-1];
-    if(!row || !row[1]) continue;
-    const nombre = row[1];
-    const visitas = row[2];
-    const fteBU   = row[3];
-    const fteReal = row[4];
-    const bppBU   = row[6];
-    const bppReal = row[7];
-    const difFTE  = rtData[r-1]?.[9]; // col J = dif FTE BU
-    // Only include rows with visitas (skip header and total)
-    if(typeof visitas === 'number'){
-      masters.push({ nombre, visitas, fteBU, fteReal, bppBU, bppReal, difFTE });
-    }
+    if(!row || !row[1] || typeof row[2] !== 'number') continue;
+    masters.push({
+      nombre:   row[1],
+      isHeader: TERR_NAMES.has(row[1]),
+      visitas:  row[2],
+      fteBU:    row[3],
+      fteReal:  typeof row[4] === 'number' ? row[4] : null,
+      bppBU:    typeof row[6] === 'number' ? row[6] : null,
+      bppReal:  typeof row[7] === 'number' ? row[7] : null,
+      difFTE:   typeof row[9] === 'number' ? row[9] : null,
+    });
   }
 
   // Merge territoriales
@@ -497,10 +503,9 @@ function parseFile(wb){
     const rp   = r[13] ?? 0;
     const conv = r[14] ?? 0;
     const proy = vis + (espF > 0 ? espF : 0);
-    const estado = vis === 0 ? 'zero'
-      : espF < 0 ? 'ahead'
-      : espF === 0 ? 'on'
-      : 'behind';
+    // Cluster score: combine projected visitas + conversión
+    // Score 0-100: 70% weight on projected visitas (relative), 30% on conversión
+    const estado = calcCluster(vis, proy, conv);
     cps.push({
       provincia:   r[0],
       zona:        r[1],
@@ -521,8 +526,44 @@ function parseFile(wb){
     });
   }
 
+  normalizeCluster(cps);
   return { territoriales, masters, cps };
 }
+
+// ── Cluster scoring ──────────────────────────────────────────────────────
+// Called after all CPs are parsed — needs global max for normalization
+let _maxProy = 1;
+function calcCluster(vis, proy, conv){
+  // Placeholder — recalculated in normalizeCluster() after all CPs loaded
+  return {vis, proy, conv, score:0, label:'pending'};
+}
+function normalizeCluster(cps){
+  _maxProy = Math.max(...cps.map(r => r.proyectado), 1);
+  const maxConv = Math.max(...cps.map(r => r.conv || 0), 0.01);
+  cps.forEach(r => {
+    if(r.visitas === 0 && r.proyectado === 0){
+      r.estado = 'sinvis'; return;
+    }
+    const scoreVis  = r.proyectado / _maxProy;          // 0-1
+    const scoreConv = (r.conv || 0) / maxConv;          // 0-1
+    const score = scoreVis * 0.7 + scoreConv * 0.3;     // weighted
+    r.score = score;
+    r.estado = score >= 0.75 ? 'exc'
+             : score >= 0.55 ? 'muyb'
+             : score >= 0.35 ? 'bien'
+             : score >= 0.15 ? 'malo'
+             : 'muym';
+  });
+}
+
+const CLUSTER_CFG = {
+  exc:   { label:'Excelente',  color:'#29c99a' },
+  muyb:  { label:'Muy bueno',  color:'#2e7fff' },
+  bien:  { label:'Bueno',      color:'#e0a729' },
+  malo:  { label:'Malo',       color:'#e05a5a' },
+  muym:  { label:'Muy malo',   color:'#6b3232' },
+  sinvis:{ label:'Sin visitas',color:'#344d66' },
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 const fmtN  = v => v == null ? '—' : Math.round(v).toLocaleString('es');
@@ -545,8 +586,10 @@ function rhythmClass(msg){
 }
 
 function estadoLabel(e){
-  const m = {ahead:'Adelantado', on:'En ritmo', behind:'Atrasado', zero:'Sin visitas'};
-  return m[e] || e;
+  return CLUSTER_CFG[e]?.label || e;
+}
+function estadoColor(e){
+  return CLUSTER_CFG[e]?.color || '#344d66';
 }
 
 // ── Build filters ─────────────────────────────────────────────────────────
@@ -600,8 +643,7 @@ function renderMasters(){
   // Group by territorial (rows with fteBU but no fteReal are territorial headers)
   let currentTerritorial = null;
   tbody.innerHTML = Z.masters.map(m => {
-    const isHeader = m.fteBU !== null && (m.fteReal === null || m.fteReal === 0);
-    const isSub    = !isHeader;
+    const isHeader = m.isHeader;
 
     // BPP Real can be a string '#DIV/0!' — handle gracefully
     const bppRealVal = typeof m.bppReal === 'number' ? m.bppReal.toFixed(2) : '—';
@@ -772,7 +814,7 @@ function renderOTable(){
 
   document.getElementById('oCount').textContent = rows.length + ' CPs';
 
-  const estadoColors = {ahead:'var(--green)', on:'var(--accent2)', behind:'var(--amber)', zero:'var(--dim)'};
+
 
   const tbody = document.getElementById('oTbody');
   tbody.innerHTML = rows.map(r => {
@@ -793,7 +835,7 @@ function renderOTable(){
       <td>${fmtN(r.re)}</td>
       <td>${fmtN(r.rp)}</td>
       <td>${r.conv > 0 ? (r.conv*100).toFixed(1)+'%' : '—'}</td>
-      <td><span class="sema ${r.estado}" style="color:${estadoColors[r.estado]}">${estadoLabel(r.estado)}</span></td>
+      <td><span class="sema" style="color:${estadoColor(r.estado)};background:${estadoColor(r.estado)}15;border:1px solid ${estadoColor(r.estado)}30">${estadoLabel(r.estado)}</span></td>
     </tr>`;
   }).join('');
   if(!rows.length) tbody.innerHTML = '<tr><td colspan="12" class="nodata">Sin resultados</td></tr>';
@@ -806,13 +848,6 @@ const CP_COORDS = {"C1419":[-34.592106,-58.492422],"B2761":[-21.946447,-66.05147
 // ── Map ──────────────────────────────────────────────────────────────────
 let MAP = null;
 let MAP_MARKERS = null;
-
-const ESTADO_COLOR = {
-  ahead:  '#29c99a',
-  on:     '#2e7fff',
-  behind: '#e0a729',
-  zero:   '#344d66'
-};
 
 function initMap(){
   if(MAP) return;
@@ -871,7 +906,7 @@ function renderMap(){
     visible++;
     counts[r.estado] = (counts[r.estado]||0) + 1;
 
-    const color = ESTADO_COLOR[r.estado] || '#344d66';
+    const color = estadoColor(r.estado);
     const radius = r.visitas > 0 ? Math.max(5, Math.min(12, 5 + r.visitas / 30)) : 5;
 
     const marker = L.circleMarker(coords, {
@@ -898,7 +933,7 @@ function renderMap(){
         </div>
         <div style="margin-top:8px;padding:4px 8px;border-radius:3px;font-size:10px;text-align:center;
           background:${color}22;color:${color};border:1px solid ${color}44">
-          ${{ahead:'Adelantado',on:'En ritmo',behind:'Atrasado',zero:'Sin visitas'}[r.estado]}
+          ${estadoLabel(r.estado)}
         </div>
       </div>
     `, {
@@ -911,10 +946,9 @@ function renderMap(){
 
   document.getElementById('mCount').textContent = visible + ' CPs';
   document.getElementById('mapStats').innerHTML =
-    `<span style="color:var(--green)">${counts.ahead||0}</span> adel · ` +
-    `<span style="color:var(--accent2)">${counts.on||0}</span> ritmo · ` +
-    `<span style="color:var(--amber)">${counts.behind||0}</span> atr · ` +
-    `<span style="color:var(--dim)">${counts.zero||0}</span> sin vis`;
+    Object.entries(CLUSTER_CFG).map(([k,v]) =>
+      counts[k] ? `<span style="color:${v.color}">${counts[k]}</span> ${v.label.toLowerCase()}` : ''
+    ).filter(Boolean).join(' · ');
 
   // Fit bounds if markers exist
   if(visible > 0){
@@ -1003,4 +1037,3 @@ function exportExcel(view){
 </script>
 </body>
 </html>
-
