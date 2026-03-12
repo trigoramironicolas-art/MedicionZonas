@@ -215,12 +215,28 @@ tbody td.muted{color:var(--sub)}
   <div class="main" id="viewG">
     <div class="sec-title">Resumen por Territorial</div>
     <div class="tcards" id="tcards"></div>
+    <div class="sec-title">Masters · Colaboradores</div>
+    <div class="tbl-wrap" style="margin-bottom:28px">
+      <table id="mastersTable">
+        <thead><tr>
+          <th>Colaborador</th>
+          <th>Visitas</th>
+          <th>FTE BU</th>
+          <th>FTE Real</th>
+          <th>Dif FTE</th>
+          <th>BPP BU</th>
+          <th>BPP Real</th>
+        </tr></thead>
+        <tbody id="mastersTbody"></tbody>
+      </table>
+    </div>
     <div class="sec-title">Detalle por Territorial</div>
     <div class="filters">
       <select id="gTerr" onchange="renderGTable()">
         <option value="">Todos los territoriales</option>
       </select>
       <span class="results-count" id="gCount"></span>
+      <button class="rbtn" onclick="exportExcel('G')" style="margin-left:auto">↓ Exportar Excel</button>
     </div>
     <div class="tbl-wrap">
       <table id="gTable">
@@ -298,6 +314,7 @@ tbody td.muted{color:var(--sub)}
       </select>
       <input id="oSearch" placeholder="Buscar CP, localidad, partido…" oninput="renderOTable()">
       <span class="results-count" id="oCount"></span>
+      <button class="rbtn" onclick="exportExcel('O')" style="margin-left:auto">↓ Exportar Excel</button>
     </div>
     <div class="tbl-wrap">
       <table id="oTable">
@@ -356,6 +373,7 @@ function loadFile(inp){
           document.getElementById('btnReset').style.display = '';
           buildFilters();
           renderTCards();
+          renderMasters();
           renderGTable();
           renderOTable();
         }, 200);
@@ -432,6 +450,24 @@ function parseFile(wb){
     };
   }
 
+  // ── MASTERS table R37:H51 ──
+  const masters = [];
+  for(let r = 37; r <= 52; r++){
+    const row = rtData[r-1];
+    if(!row || !row[1]) continue;
+    const nombre = row[1];
+    const visitas = row[2];
+    const fteBU   = row[3];
+    const fteReal = row[4];
+    const bppBU   = row[6];
+    const bppReal = row[7];
+    const difFTE  = rtData[r-1]?.[9]; // col J = dif FTE BU
+    // Only include rows with visitas (skip header and total)
+    if(typeof visitas === 'number'){
+      masters.push({ nombre, visitas, fteBU, fteReal, bppBU, bppReal, difFTE });
+    }
+  }
+
   // Merge territoriales
   const terrSet = new Set([...Object.keys(bppMap), ...Object.keys(fteMap), ...Object.keys(visMap)]);
   const territoriales = [...terrSet].filter(t => t && t !== 'Total general').map(t => ({
@@ -485,7 +521,7 @@ function parseFile(wb){
     });
   }
 
-  return { territoriales, cps };
+  return { territoriales, masters, cps };
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -551,6 +587,58 @@ function switchTab(t){
   document.getElementById('tabO').className = 'tab' + (t==='O' ? ' act' : '');
   document.getElementById('tabM').className = 'tab' + (t==='M' ? ' act' : '');
   if(t==='M'){ setTimeout(()=>{ if(MAP) MAP.invalidateSize(); renderMap(); }, 50); }
+}
+
+// ── Masters Table ────────────────────────────────────────────────────────
+function renderMasters(){
+  const tbody = document.getElementById('mastersTbody');
+  if(!Z.masters || !Z.masters.length){
+    tbody.innerHTML = '<tr><td colspan="7" class="nodata">Sin datos de Masters</td></tr>';
+    return;
+  }
+
+  // Group by territorial (rows with fteBU but no fteReal are territorial headers)
+  let currentTerritorial = null;
+  tbody.innerHTML = Z.masters.map(m => {
+    const isHeader = m.fteBU !== null && (m.fteReal === null || m.fteReal === 0);
+    const isSub    = !isHeader;
+
+    // BPP Real can be a string '#DIV/0!' — handle gracefully
+    const bppRealVal = typeof m.bppReal === 'number' ? m.bppReal.toFixed(2) : '—';
+    const bppBUVal   = typeof m.bppBU   === 'number' ? m.bppBU.toFixed(2)   : '—';
+    const fteRealVal = typeof m.fteReal === 'number' ? m.fteReal.toFixed(1) : '—';
+
+    // Dif FTE badge
+    let difHtml = '—';
+    if(typeof m.difFTE === 'number' && m.difFTE !== 0){
+      const up = m.difFTE > 0;
+      difHtml = `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(m.difFTE).toFixed(1)}</span>`;
+    } else if(m.difFTE === 0){
+      difHtml = '<span style="color:var(--dim)">—</span>';
+    }
+
+    if(isHeader){
+      return `<tr style="background:var(--s2)">
+        <td style="font-weight:600;color:var(--t);letter-spacing:.3px">${m.nombre}</td>
+        <td style="font-weight:600">${Math.round(m.visitas)}</td>
+        <td style="font-weight:600">${m.fteBU ?? '—'}</td>
+        <td style="color:var(--sub)">${fteRealVal}</td>
+        <td>${difHtml}</td>
+        <td style="font-weight:600">${bppBUVal}</td>
+        <td style="color:var(--sub)">${bppRealVal}</td>
+      </tr>`;
+    } else {
+      return `<tr>
+        <td class="muted" style="padding-left:24px">↳ ${m.nombre}</td>
+        <td>${Math.round(m.visitas)}</td>
+        <td class="muted">${m.fteBU ?? '—'}</td>
+        <td class="muted">${fteRealVal}</td>
+        <td>${difHtml}</td>
+        <td class="muted">${bppBUVal}</td>
+        <td class="muted">${bppRealVal}</td>
+      </tr>`;
+    }
+  }).join('');
 }
 
 // ── Territorial Cards ─────────────────────────────────────────────────────
@@ -834,6 +922,85 @@ function renderMap(){
   }
 }
 
+
+// ── Export Excel ─────────────────────────────────────────────────────────
+function exportExcel(view){
+  let rows, filename, headers;
+
+  if(view === 'G'){
+    const terrFilter = document.getElementById('gTerr').value;
+    rows = Z.cps.filter(r => !terrFilter || r.territorial === terrFilter);
+    filename = (terrFilter || 'Todos') + '_detalle.xlsx';
+    headers = ['Territorio','GM','CC','CP','Localidad','Partido','Provincia','Zona',
+               'Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
+    rows = rows.map(r => [
+      r.territorio, r.gm, r.cc, r.cp, r.localidad, r.partido, r.provincia, r.zona,
+      r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
+      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
+      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
+    ]);
+  } else {
+    const fTerritorial = document.getElementById('oTerritorial').value;
+    const fTerritorio  = document.getElementById('oTerritorio').value;
+    const fZona        = document.getElementById('oZona').value;
+    const fSearch      = document.getElementById('oSearch').value.toLowerCase().trim();
+    rows = Z.cps.filter(r => {
+      if(fTerritorial && r.territorial !== fTerritorial) return false;
+      if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
+      if(fZona        && r.zona        !== fZona)         return false;
+      if(fSearch){
+        const hay = [r.cp,r.localidad,r.partido,r.gm,r.sales].join(' ').toLowerCase();
+        if(!hay.includes(fSearch)) return false;
+      }
+      return true;
+    });
+    filename = (fTerritorial || 'Zonificacion') + '_CPs.xlsx';
+    headers = ['Territorial','Territorio','GM','CC','CP','Sales','Localidad','Partido',
+               'Provincia','Zona','Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
+    rows = rows.map(r => [
+      r.territorial, r.territorio, r.gm, r.cc, r.cp, r.sales, r.localidad, r.partido,
+      r.provincia, r.zona, r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
+      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
+      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Column widths
+  ws['!cols'] = headers.map(h => ({wch: Math.max(h.length + 2, 12)}));
+
+  // Header style (bold background)
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let c = range.s.c; c <= range.e.c; c++){
+    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
+    if(cell) cell.s = {font:{bold:true}, fill:{fgColor:{rgb:'1A2232'}}, alignment:{horizontal:'center'}};
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'CPs');
+
+  // If gerencial, also add Masters sheet
+  if(view === 'G' && Z.masters?.length){
+    const mHeaders = ['Colaborador','Visitas','FTE BU','FTE Real','Dif FTE','BPP BU','BPP Real'];
+    const mRows = Z.masters.map(m => [
+      m.nombre,
+      typeof m.visitas  === 'number' ? Math.round(m.visitas)    : m.visitas,
+      m.fteBU  ?? '',
+      typeof m.fteReal  === 'number' ? +m.fteReal.toFixed(1)    : '',
+      typeof m.difFTE   === 'number' ? +m.difFTE.toFixed(1)     : '',
+      typeof m.bppBU    === 'number' ? +m.bppBU.toFixed(2)      : '',
+      typeof m.bppReal  === 'number' ? +m.bppReal.toFixed(2)    : ''
+    ]);
+    const wsM = XLSX.utils.aoa_to_sheet([mHeaders, ...mRows]);
+    wsM['!cols'] = mHeaders.map(h => ({wch: Math.max(h.length + 2, 14)}));
+    XLSX.utils.book_append_sheet(wb, wsM, 'Masters');
+  }
+
+  XLSX.writeFile(wb, filename);
+}
+
 </script>
 </body>
 </html>
+
