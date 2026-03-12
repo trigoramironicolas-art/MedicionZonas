@@ -1,1 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zonificación · Planeamiento Regional</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --bg:      #0d1117;
+  --s1:      #131923;
+  --s2:      #1a2232;
+  --bd:      #1f2d42;
+  --bd2:     #2a3d58;
+  --accent:  #2e7fff;
+  --accent2: #5ba3ff;
+  --silver:  #8faabf;
+  --green:   #29c99a;
+  --red:     #e05a5a;
+  --amber:   #e0a729;
+  --t:       #dce8f4;
+  --sub:     #6e8ca8;
+  --dim:     #344d66;
+  --navy:    #091428;
+  --purple:  #c084fc;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;font-size:13px;min-height:100vh}
+
+/* ── Header ── */
+.hdr{background:var(--s1);border-bottom:1px solid var(--bd);padding:12px 24px;display:flex;align-items:center;gap:16px}
+.hdr-back{color:var(--sub);text-decoration:none;font-size:11px;font-family:'IBM Plex Mono',monospace;letter-spacing:.5px;
+  padding:4px 10px;border:1px solid var(--bd);border-radius:4px;transition:all .2s}
+.hdr-back:hover{color:var(--accent);border-color:var(--accent)}
+.hdr-title{font-size:14px;font-weight:600;letter-spacing:.5px;color:var(--t)}
+.hdr-sub{font-size:10px;color:var(--sub);font-family:'IBM Plex Mono',monospace;margin-left:auto}
+.hdr-cut{font-size:10px;color:var(--dim);font-family:'IBM Plex Mono',monospace;margin-left:12px}
+
+/* ── Upload ── */
+.upload-wrap{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 53px)}
+.upload-box{background:var(--s1);border:1px solid var(--bd);border-radius:12px;padding:48px;text-align:center;max-width:420px;width:90%}
+.upload-icon{font-size:36px;margin-bottom:16px;opacity:.6}
+.upload-title{font-size:15px;font-weight:600;margin-bottom:8px;color:var(--t)}
+.upload-sub{font-size:12px;color:var(--sub);margin-bottom:24px;line-height:1.6}
+.upload-btn{background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:6px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.5px;cursor:pointer;transition:opacity .2s}
+.upload-btn:hover{opacity:.85}
+.rbtn{background:transparent;color:var(--sub);border:1px solid var(--bd);padding:5px 12px;border-radius:4px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;cursor:pointer;transition:all .2s}
+.rbtn:hover{color:var(--t);border-color:var(--bd2)}
+
+/* ── Progress ── */
+.prog-wrap{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 53px)}
+.prog-box{text-align:center}
+.prog-bar{width:220px;height:3px;background:var(--bd);border-radius:2px;margin:16px auto}
+.prog-fill{height:100%;background:var(--accent);border-radius:2px;transition:width .3s;width:0%}
+.prog-lbl{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--sub)}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:2px;padding:12px 24px 0;background:var(--s1);border-bottom:1px solid var(--bd)}
+.tab{padding:8px 18px;font-size:11px;font-family:'IBM Plex Mono',monospace;letter-spacing:.3px;
+  color:var(--sub);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;border-radius:4px 4px 0 0}
+.tab:hover{color:var(--t)}
+.tab.act{color:var(--accent);border-bottom-color:var(--accent);background:var(--bg)}
+
+/* ── Main layout ── */
+.main{padding:20px 24px;max-width:1400px;margin:0 auto}
+
+/* ── Section title ── */
+.sec-title{font-size:10px;font-family:'IBM Plex Mono',monospace;letter-spacing:1px;color:var(--sub);
+  text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--bd)}
+
+/* ── Territorial cards ── */
+.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px}
+.tcard{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px;
+  position:relative;overflow:hidden;transition:border-color .2s}
+.tcard:hover{border-color:var(--bd2)}
+.tcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.tcard.c0::before{background:var(--accent)}
+.tcard.c1::before{background:var(--green)}
+.tcard.c2::before{background:var(--amber)}
+.tcard.c3::before{background:var(--purple)}
+.tcard.c4::before{background:#e05a5a}
+
+.tc-name{font-size:11px;font-weight:600;color:var(--t);margin-bottom:12px;letter-spacing:.3px}
+.tc-rhythm{font-size:10px;padding:5px 10px;border-radius:4px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;
+  font-weight:500;line-height:1.3}
+.tc-rhythm.ok{background:#29c99a18;color:var(--green);border:1px solid #29c99a30}
+.tc-rhythm.warn{background:#e0a72918;color:var(--amber);border:1px solid #e0a72930}
+.tc-rhythm.neutral{background:#2e7fff18;color:var(--accent2);border:1px solid #2e7fff30}
+
+.tc-kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.tc-kpi{text-align:center}
+.tc-kpi-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px}
+.tc-kpi-val{font-size:15px;font-weight:600;color:var(--t);line-height:1}
+.tc-kpi-delta{font-size:9px;margin-top:3px}
+
+.dbadge{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;padding:1px 5px;border-radius:3px}
+.dbadge.up{background:#29c99a20;color:var(--green)}
+.dbadge.dn{background:#e05a5a20;color:var(--red)}
+
+.tc-divider{height:1px;background:var(--bd);margin:12px 0}
+.tc-fte{display:flex;align-items:center;justify-content:space-between}
+.tc-fte-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px}
+.tc-fte-val{font-size:12px;font-weight:600;color:var(--silver)}
+
+/* ── Desvío bar ── */
+.desv-wrap{margin-top:10px}
+.desv-lbl{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-bottom:4px;font-family:'IBM Plex Mono',monospace}
+.desv-bar{height:4px;background:var(--bd);border-radius:2px;overflow:hidden}
+.desv-fill{height:100%;border-radius:2px;transition:width .4s}
+
+/* ── Filters ── */
+.filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+.filters select,.filters input{background:var(--s1);border:1px solid var(--bd);color:var(--t);
+  padding:6px 10px;border-radius:6px;font-size:11px;font-family:'IBM Plex Mono',monospace;outline:none;transition:border-color .2s}
+.filters select:focus,.filters input:focus{border-color:var(--accent2)}
+.filters input{min-width:200px}
+.filter-lbl{font-size:10px;color:var(--sub);font-family:'IBM Plex Mono',monospace}
+.results-count{font-size:10px;color:var(--dim);font-family:'IBM Plex Mono',monospace;margin-left:auto}
+
+/* ── CP Table ── */
+.tbl-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--bd)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{background:var(--s2);padding:9px 12px;text-align:left;font-family:'IBM Plex Mono',monospace;
+  font-size:9px;letter-spacing:.5px;color:var(--sub);font-weight:500;white-space:nowrap;border-bottom:1px solid var(--bd);
+  cursor:pointer;user-select:none}
+thead th:hover{color:var(--t)}
+thead th.sort-asc::after{content:' ▲';font-size:8px}
+thead th.sort-desc::after{content:' ▼';font-size:8px}
+tbody tr{border-bottom:1px solid var(--bd);transition:background .15s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:var(--s2)}
+tbody td{padding:8px 12px;color:var(--t);font-family:'IBM Plex Mono',monospace;white-space:nowrap}
+tbody td.name{font-family:'IBM Plex Sans',sans-serif;color:var(--silver)}
+tbody td.muted{color:var(--sub)}
+
+/* ── Semáforo ── */
+.sema{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-family:'IBM Plex Mono',monospace;
+  padding:2px 8px;border-radius:3px}
+.sema.ahead{background:#29c99a15;color:var(--green);border:1px solid #29c99a25}
+.sema.on{background:#2e7fff15;color:var(--accent2);border:1px solid #2e7fff25}
+.sema.behind{background:#e0a72915;color:var(--amber);border:1px solid #e0a72925}
+.sema.zero{background:#344d6620;color:var(--dim);border:1px solid var(--bd)}
+
+/* ── Progress mini bar ── */
+.pbar{width:60px;height:4px;background:var(--bd);border-radius:2px;display:inline-block;vertical-align:middle}
+.pbar-fill{height:100%;border-radius:2px}
+
+/* ── No data ── */
+.nodata{text-align:center;padding:48px;color:var(--sub);font-family:'IBM Plex Mono',monospace;font-size:11px}
+
+/* ── Map ── */
+#mapWrap{position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--bd);margin-bottom:20px}
+#mapEl{height:520px;background:var(--navy)}
+.map-overlay{position:absolute;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:6px}
+.map-legend{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:10px 14px;
+  font-size:10px;font-family:'IBM Plex Mono',monospace}
+.map-legend-title{color:var(--sub);letter-spacing:.5px;margin-bottom:8px;font-size:9px}
+.map-legend-item{display:flex;align-items:center;gap:6px;margin-bottom:4px;color:var(--t)}
+.map-legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.map-stats{background:var(--s1);border:1px solid var(--bd);border-radius:6px;padding:8px 14px;
+  font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--sub)}
+.map-stats span{color:var(--t);font-weight:600}
+.leaflet-tile{filter:brightness(.7) saturate(.4) hue-rotate(200deg)}
+.leaflet-container{background:#091428}
+.map-popup .leaflet-popup-content-wrapper{background:#131923;border:1px solid #1f2d42;border-radius:8px;box-shadow:0 4px 20px #00000060;color:#dce8f4}
+.map-popup .leaflet-popup-tip{background:#131923}
+.map-popup .leaflet-popup-content{margin:12px 14px}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="hdr">
+  <a href="../index.html" class="hdr-back">← Volver</a>
+  <div class="hdr-title">ZONIFICACIÓN</div>
+  <button class="rbtn" id="btnReset" style="display:none" onclick="resetUp()">↩ Cambiar archivo</button>
+  <div class="hdr-sub" id="hdrCut"></div>
+</div>
+
+<!-- Upload -->
+<div class="upload-wrap" id="upWrap">
+  <div class="upload-box">
+    <div class="upload-icon">📂</div>
+    <div class="upload-title">Cargar archivo de Zonificación</div>
+    <div class="upload-sub">Seleccioná el archivo <strong>Zonificación.xlsm</strong> para visualizar el resumen territorial y el detalle por código postal.</div>
+    <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls" style="display:none" onchange="loadFile(this)">
+    <button class="upload-btn" onclick="document.getElementById('fileIn').click()">Seleccionar archivo</button>
+  </div>
+</div>
+
+<!-- Progress -->
+<div class="prog-wrap" id="progWrap" style="display:none">
+  <div class="prog-box">
+    <div class="prog-lbl" id="progLbl">Leyendo archivo…</div>
+    <div class="prog-bar"><div class="prog-fill" id="progFill"></div></div>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dash" style="display:none">
+  <div class="tabs">
+    <div class="tab act" id="tabG" onclick="switchTab('G')">Vista Gerencial</div>
+    <div class="tab" id="tabO" onclick="switchTab('O')">Vista Operativa</div>
+    <div class="tab" id="tabM" onclick="switchTab('M')">Mapa</div>
+  </div>
+
+  <!-- Gerencial -->
+  <div class="main" id="viewG">
+    <div class="sec-title">Resumen por Territorial</div>
+    <div class="tcards" id="tcards"></div>
+    <div class="sec-title">Masters · Colaboradores</div>
+    <div class="tbl-wrap" style="margin-bottom:28px">
+      <table id="mastersTable">
+        <thead><tr>
+          <th>Colaborador</th>
+          <th>Visitas</th>
+          <th>FTE BU</th>
+          <th>FTE Real</th>
+          <th>Dif FTE</th>
+          <th>BPP BU</th>
+          <th>BPP Real</th>
+        </tr></thead>
+        <tbody id="mastersTbody"></tbody>
+      </table>
+    </div>
+    <div class="sec-title">Detalle por Territorial</div>
+    <div class="filters">
+      <select id="gTerr" onchange="renderGTable()">
+        <option value="">Todos los territoriales</option>
+      </select>
+      <span class="results-count" id="gCount"></span>
+      <button class="rbtn" onclick="exportExcel('G')" style="margin-left:auto">↓ Exportar Excel</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="gTable">
+        <thead><tr>
+          <th onclick="sortG('territorio')">Territorio</th>
+          <th onclick="sortG('gm')">GM</th>
+          <th onclick="sortG('cp')">CP</th>
+          <th onclick="sortG('localidad')">Localidad</th>
+          <th onclick="sortG('visitas')">Visitas</th>
+          <th onclick="sortG('proyectado')">Proyectado</th>
+          <th onclick="sortG('re')">RE</th>
+          <th onclick="sortG('rp')">RP</th>
+          <th onclick="sortG('conv')">Conv%</th>
+        </tr></thead>
+        <tbody id="gTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Mapa -->
+  <div class="main" id="viewM" style="display:none">
+    <div class="filters" id="mapFilters">
+      <select id="mTerritorial" onchange="renderMap()">
+        <option value="">Todos los territoriales</option>
+      </select>
+      <select id="mTerritorio" onchange="renderMap()">
+        <option value="">Todos los territorios</option>
+      </select>
+      <select id="mZona" onchange="renderMap()">
+        <option value="">Todas las zonas</option>
+      </select>
+      <select id="mEstado" onchange="renderMap()">
+        <option value="">Todos los estados</option>
+        <option value="ahead">Adelantado</option>
+        <option value="on">En ritmo</option>
+        <option value="behind">Atrasado</option>
+        <option value="zero">Sin visitas</option>
+      </select>
+      <span class="results-count" id="mCount"></span>
+    </div>
+    <div id="mapWrap">
+      <div id="mapEl"></div>
+      <div class="map-overlay">
+        <div class="map-legend">
+          <div class="map-legend-title">ESTADO</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#29c99a"></div>Adelantado</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#2e7fff"></div>En ritmo</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#e0a729"></div>Atrasado</div>
+          <div class="map-legend-item"><div class="map-legend-dot" style="background:#344d66"></div>Sin visitas</div>
+        </div>
+        <div class="map-stats" id="mapStats">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operativa -->
+  <div class="main" id="viewO" style="display:none">
+    <div class="sec-title">Vista Operativa · Códigos Postales</div>
+    <div class="filters">
+      <select id="oTerritorial" onchange="renderOTable()">
+        <option value="">Todos los territoriales</option>
+      </select>
+      <select id="oTerritorio" onchange="renderOTable()">
+        <option value="">Todos los territorios</option>
+      </select>
+      <select id="oZona" onchange="renderOTable()">
+        <option value="">Todas las zonas</option>
+      </select>
+      <select id="oEstado" onchange="renderOTable()">
+        <option value="">Todos los estados</option>
+        <option value="ahead">Adelantado</option>
+        <option value="on">En ritmo</option>
+        <option value="behind">Atrasado</option>
+        <option value="zero">Sin visitas</option>
+      </select>
+      <input id="oSearch" placeholder="Buscar CP, localidad, partido…" oninput="renderOTable()">
+      <span class="results-count" id="oCount"></span>
+      <button class="rbtn" onclick="exportExcel('O')" style="margin-left:auto">↓ Exportar Excel</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="oTable">
+        <thead><tr>
+          <th onclick="sortO('territorial')">Territorial</th>
+          <th onclick="sortO('territorio')">Territorio</th>
+          <th onclick="sortO('gm')">GM</th>
+          <th onclick="sortO('cp')">CP</th>
+          <th onclick="sortO('localidad')">Localidad</th>
+          <th onclick="sortO('visitas')">Visitas</th>
+          <th onclick="sortO('esp_falt')">Esp. Faltantes</th>
+          <th onclick="sortO('proyectado')">Proyectado</th>
+          <th onclick="sortO('re')">RE</th>
+          <th onclick="sortO('rp')">RP</th>
+          <th onclick="sortO('conv')">Conv%</th>
+          <th onclick="sortO('estado')">Estado</th>
+        </tr></thead>
+        <tbody id="oTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+let Z = null; // parsed data
+let gSort = {k:'visitas', asc:false};
+let oSort = {k:'visitas', asc:false};
+let activeTab = 'G';
+
+// ── Progress ────────────────────────────────────────────────────────────
+function prog(p, lbl){
+  document.getElementById('progFill').style.width = p+'%';
+  if(lbl) document.getElementById('progLbl').textContent = lbl;
+}
+
+// ── Load file ────────────────────────────────────────────────────────────
+function loadFile(inp){
+  const file = inp.files[0];
+  if(!file) return;
+  document.getElementById('upWrap').style.display = 'none';
+  document.getElementById('progWrap').style.display = 'flex';
+  prog(5, 'Leyendo archivo…');
+  const reader = new FileReader();
+  reader.onload = e => {
+    prog(30, 'Procesando hojas…');
+    setTimeout(() => {
+      try {
+        const wb = XLSX.read(e.target.result, {type:'array', cellDates:true});
+        prog(60, 'Analizando datos…');
+        Z = parseFile(wb);
+        prog(90, 'Construyendo vistas…');
+        setTimeout(() => {
+          prog(100);
+          document.getElementById('progWrap').style.display = 'none';
+          document.getElementById('dash').style.display = 'block';
+          document.getElementById('btnReset').style.display = '';
+          buildFilters();
+          renderTCards();
+          renderMasters();
+          renderGTable();
+          renderOTable();
+        }, 200);
+      } catch(err){
+        alert('Error al leer el archivo: ' + err.message);
+        resetUp();
+      }
+    }, 50);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function resetUp(){
+  Z = null;
+  document.getElementById('dash').style.display = 'none';
+  document.getElementById('upWrap').style.display = 'flex';
+  document.getElementById('btnReset').style.display = 'none';
+  document.getElementById('hdrCut').textContent = '';
+  document.getElementById('fileIn').value = '';
+}
+
+// ── Parse ────────────────────────────────────────────────────────────────
+function parseFile(wb){
+  const rt = wb.Sheets['Resumen Territorial'];
+  const mes = wb.Sheets['Mes'];
+  if(!rt || !mes) throw new Error('No se encontraron las pestañas "Resumen Territorial" y "Mes"');
+
+  // ── Resumen Territorial ──
+  const rtData = XLSX.utils.sheet_to_json(rt, {header:1, defval:null});
+
+  // Last cut date (R6 col N = index 13)
+  const cutRaw = rtData[5]?.[14];
+  const cutDate = cutRaw instanceof Date ? cutRaw : (typeof cutRaw === 'number' ? new Date(Math.round((cutRaw - 25569)*86400*1000)) : null);
+  const cutStr = cutDate ? cutDate.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+  if(cutStr) document.getElementById('hdrCut').textContent = 'Corte: ' + cutStr;
+
+  // BPP table R25:F30 (0-indexed: rows 24-29, cols 1-5)
+  const bppMap = {};
+  for(let r = 25; r <= 30; r++){
+    const row = rtData[r-1];
+    if(!row || !row[1]) continue;
+    bppMap[row[1]] = {
+      bpp:      row[2],
+      difBpp:   row[3],
+      difVis:   row[4], // text message
+      ritmo:    row[5]
+    };
+  }
+
+  // FTE + Visitas esperadas table R8:H13
+  const fteMap = {};
+  for(let r = 8; r <= 13; r++){
+    const row = rtData[r-1];
+    if(!row || !row[1] || row[1]==='Total') continue;
+    fteMap[row[1]] = {
+      fte:         row[2],
+      share:       row[3],
+      visEspMTD:   row[4],
+      realVsEsp:   row[5],
+      desvio:      row[6]
+    };
+  }
+
+  // Visitas table R16:E21
+  const visMap = {};
+  for(let r = 16; r <= 21; r++){
+    const row = rtData[r-1];
+    if(!row || !row[1]) continue;
+    visMap[row[1]] = {
+      visitas:    row[2],
+      difVsAnt:   row[3],
+      shareVis:   row[4],
+      delta:      row[5]
+    };
+  }
+
+  // ── MASTERS table R37:H51 ──
+  const masters = [];
+  for(let r = 37; r <= 52; r++){
+    const row = rtData[r-1];
+    if(!row || !row[1]) continue;
+    const nombre = row[1];
+    const visitas = row[2];
+    const fteBU   = row[3];
+    const fteReal = row[4];
+    const bppBU   = row[6];
+    const bppReal = row[7];
+    const difFTE  = rtData[r-1]?.[9]; // col J = dif FTE BU
+    // Only include rows with visitas (skip header and total)
+    if(typeof visitas === 'number'){
+      masters.push({ nombre, visitas, fteBU, fteReal, bppBU, bppReal, difFTE });
+    }
+  }
+
+  // Merge territoriales
+  const terrSet = new Set([...Object.keys(bppMap), ...Object.keys(fteMap), ...Object.keys(visMap)]);
+  const territoriales = [...terrSet].filter(t => t && t !== 'Total general').map(t => ({
+    nombre: t,
+    bpp:      bppMap[t]?.bpp      ?? null,
+    difBpp:   bppMap[t]?.difBpp   ?? null,
+    difVis:   bppMap[t]?.difVis   ?? null,
+    ritmo:    bppMap[t]?.ritmo    ?? null,
+    fte:      fteMap[t]?.fte      ?? null,
+    visEspMTD: fteMap[t]?.visEspMTD ?? null,
+    realVsEsp: fteMap[t]?.realVsEsp ?? null,
+    desvio:   fteMap[t]?.desvio   ?? null,
+    visitas:  visMap[t]?.visitas  ?? null,
+    difVsAnt: visMap[t]?.difVsAnt ?? null,
+    delta:    visMap[t]?.delta    ?? null,
+  }));
+
+  // ── Mes sheet ──
+  const mesRows = XLSX.utils.sheet_to_json(mes, {header:1, defval:null});
+  const cps = [];
+  for(let i = 2; i < mesRows.length; i++){
+    const r = mesRows[i];
+    if(!r[0] && !r[6]) continue;
+    const vis  = r[10] ?? 0;
+    const espF = r[11] ?? 0;
+    const re   = r[12] ?? 0;
+    const rp   = r[13] ?? 0;
+    const conv = r[14] ?? 0;
+    const proy = vis + (espF > 0 ? espF : 0);
+    const estado = vis === 0 ? 'zero'
+      : espF < 0 ? 'ahead'
+      : espF === 0 ? 'on'
+      : 'behind';
+    cps.push({
+      provincia:   r[0],
+      zona:        r[1],
+      territorio:  r[2],
+      territorial: r[3],
+      gm:          r[4],
+      cc:          r[5],
+      cp:          r[6],
+      sales:       r[7],
+      partido:     r[8],
+      localidad:   r[9],
+      visitas:     vis,
+      esp_falt:    espF,
+      proyectado:  proy,
+      re, rp, conv,
+      prod:        r[15] ?? 0,
+      estado
+    });
+  }
+
+  return { territoriales, masters, cps };
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+const fmtN  = v => v == null ? '—' : Math.round(v).toLocaleString('es');
+const fmtD  = v => v == null ? '—' : v.toFixed(2);
+const fmtPct = v => v == null ? '—' : (v*100).toFixed(1)+'%';
+const fmtPp  = v => v == null ? '—' : (v*100).toFixed(1)+'pp';
+
+function badge(v, isPp=false){
+  if(v == null || v === 0) return '';
+  const up = v > 0;
+  const lbl = isPp ? Math.abs(v*100).toFixed(1)+'pp' : (Math.abs(v*100)).toFixed(1)+'%';
+  return `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${lbl}</span>`;
+}
+
+function rhythmClass(msg){
+  if(!msg) return 'neutral';
+  if(msg.includes('excedente') || msg.includes('Equilibrado') || msg.includes('equilibrado')) return 'ok';
+  if(msg.includes('recibir')) return 'warn';
+  return 'neutral';
+}
+
+function estadoLabel(e){
+  const m = {ahead:'Adelantado', on:'En ritmo', behind:'Atrasado', zero:'Sin visitas'};
+  return m[e] || e;
+}
+
+// ── Build filters ─────────────────────────────────────────────────────────
+function buildFilters(){
+  const territoriales = [...new Set(Z.cps.map(r=>r.territorial).filter(Boolean))].sort();
+  const territorios   = [...new Set(Z.cps.map(r=>r.territorio).filter(Boolean))].sort();
+  const zonas         = [...new Set(Z.cps.map(r=>r.zona).filter(Boolean))].sort();
+
+  [['gTerr', territoriales], ['oTerritorial', territoriales]].forEach(([id, list]) => {
+    const sel = document.getElementById(id);
+    list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+  });
+
+  const selT = document.getElementById('oTerritorio');
+  territorios.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selT.appendChild(o); });
+
+  const selZ = document.getElementById('oZona');
+  zonas.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selZ.appendChild(o); });
+
+  // Map filters — same lists
+  ['mTerritorial'].forEach(id => {
+    const sel = document.getElementById(id);
+    territoriales.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
+  });
+  const selMT = document.getElementById('mTerritorio');
+  territorios.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selMT.appendChild(o); });
+  const selMZ = document.getElementById('mZona');
+  zonas.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selMZ.appendChild(o); });
+}
+
+// ── Tab switch ────────────────────────────────────────────────────────────
+function switchTab(t){
+  activeTab = t;
+  document.getElementById('viewG').style.display = t==='G' ? '' : 'none';
+  document.getElementById('viewO').style.display = t==='O' ? '' : 'none';
+  document.getElementById('viewM').style.display = t==='M' ? '' : 'none';
+  document.getElementById('tabG').className = 'tab' + (t==='G' ? ' act' : '');
+  document.getElementById('tabO').className = 'tab' + (t==='O' ? ' act' : '');
+  document.getElementById('tabM').className = 'tab' + (t==='M' ? ' act' : '');
+  if(t==='M'){ setTimeout(()=>{ if(MAP) MAP.invalidateSize(); renderMap(); }, 50); }
+}
+
+// ── Masters Table ────────────────────────────────────────────────────────
+function renderMasters(){
+  const tbody = document.getElementById('mastersTbody');
+  if(!Z.masters || !Z.masters.length){
+    tbody.innerHTML = '<tr><td colspan="7" class="nodata">Sin datos de Masters</td></tr>';
+    return;
+  }
+
+  // Group by territorial (rows with fteBU but no fteReal are territorial headers)
+  let currentTerritorial = null;
+  tbody.innerHTML = Z.masters.map(m => {
+    const isHeader = m.fteBU !== null && (m.fteReal === null || m.fteReal === 0);
+    const isSub    = !isHeader;
+
+    // BPP Real can be a string '#DIV/0!' — handle gracefully
+    const bppRealVal = typeof m.bppReal === 'number' ? m.bppReal.toFixed(2) : '—';
+    const bppBUVal   = typeof m.bppBU   === 'number' ? m.bppBU.toFixed(2)   : '—';
+    const fteRealVal = typeof m.fteReal === 'number' ? m.fteReal.toFixed(1) : '—';
+
+    // Dif FTE badge
+    let difHtml = '—';
+    if(typeof m.difFTE === 'number' && m.difFTE !== 0){
+      const up = m.difFTE > 0;
+      difHtml = `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${Math.abs(m.difFTE).toFixed(1)}</span>`;
+    } else if(m.difFTE === 0){
+      difHtml = '<span style="color:var(--dim)">—</span>';
+    }
+
+    if(isHeader){
+      return `<tr style="background:var(--s2)">
+        <td style="font-weight:600;color:var(--t);letter-spacing:.3px">${m.nombre}</td>
+        <td style="font-weight:600">${Math.round(m.visitas)}</td>
+        <td style="font-weight:600">${m.fteBU ?? '—'}</td>
+        <td style="color:var(--sub)">${fteRealVal}</td>
+        <td>${difHtml}</td>
+        <td style="font-weight:600">${bppBUVal}</td>
+        <td style="color:var(--sub)">${bppRealVal}</td>
+      </tr>`;
+    } else {
+      return `<tr>
+        <td class="muted" style="padding-left:24px">↳ ${m.nombre}</td>
+        <td>${Math.round(m.visitas)}</td>
+        <td class="muted">${m.fteBU ?? '—'}</td>
+        <td class="muted">${fteRealVal}</td>
+        <td>${difHtml}</td>
+        <td class="muted">${bppBUVal}</td>
+        <td class="muted">${bppRealVal}</td>
+      </tr>`;
+    }
+  }).join('');
+}
+
+// ── Territorial Cards ─────────────────────────────────────────────────────
+function renderTCards(){
+  const colors = ['c0','c1','c2','c3','c4'];
+  const html = Z.territoriales.map((t, i) => {
+    const rc = rhythmClass(t.difVis);
+    const pct = t.realVsEsp != null ? Math.min(Math.max((1 + t.realVsEsp) * 100, 0), 200) : null;
+    const barColor = t.realVsEsp > 0.02 ? 'var(--green)' : t.realVsEsp < -0.02 ? 'var(--red)' : 'var(--amber)';
+
+    return `<div class="tcard ${colors[i % colors.length]}">
+      <div class="tc-name">${t.nombre}</div>
+      ${t.difVis ? `<div class="tc-rhythm ${rc}">${t.difVis}</div>` : ''}
+      <div class="tc-kpis">
+        <div class="tc-kpi">
+          <div class="tc-kpi-lbl">BPP</div>
+          <div class="tc-kpi-val">${t.bpp != null ? t.bpp.toFixed(2) : '—'}</div>
+          <div class="tc-kpi-delta">${badge(t.difBpp)}</div>
+        </div>
+        <div class="tc-kpi">
+          <div class="tc-kpi-lbl">VISITAS</div>
+          <div class="tc-kpi-val">${fmtN(t.visitas)}</div>
+          <div class="tc-kpi-delta">${t.difVsAnt != null ? `<span style="font-size:9px;color:var(--sub)">+${t.difVsAnt} vs ant</span>` : ''}</div>
+        </div>
+        <div class="tc-kpi">
+          <div class="tc-kpi-lbl">FTE</div>
+          <div class="tc-kpi-val">${fmtN(t.fte)}</div>
+          <div class="tc-kpi-delta">&nbsp;</div>
+        </div>
+      </div>
+      <div class="tc-divider"></div>
+      ${t.desvio != null ? `
+      <div class="desv-wrap">
+        <div class="desv-lbl">
+          <span>Real vs Esperado</span>
+          <span style="color:${barColor}">${t.desvio > 0 ? '+' : ''}${Math.round(t.desvio)} vis</span>
+        </div>
+        <div class="desv-bar">
+          <div class="desv-fill" style="width:${Math.min(Math.abs(t.realVsEsp||0)*100*5,100)}%;background:${barColor}"></div>
+        </div>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+  document.getElementById('tcards').innerHTML = html || '<div class="nodata">Sin datos de resumen territorial</div>';
+}
+
+// ── Gerencial Table ───────────────────────────────────────────────────────
+function sortG(k){
+  if(gSort.k === k) gSort.asc = !gSort.asc;
+  else { gSort.k = k; gSort.asc = false; }
+  renderGTable();
+}
+function renderGTable(){
+  const terrFilter = document.getElementById('gTerr').value;
+  let rows = Z.cps.filter(r => !terrFilter || r.territorial === terrFilter);
+
+  rows.sort((a,b) => {
+    let va = a[gSort.k] ?? '', vb = b[gSort.k] ?? '';
+    if(typeof va === 'string') return gSort.asc ? va.localeCompare(vb,'es') : vb.localeCompare(va,'es');
+    return gSort.asc ? va - vb : vb - va;
+  });
+
+  document.getElementById('gCount').textContent = rows.length + ' CPs';
+  const tbody = document.getElementById('gTbody');
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td class="name">${r.territorio||'—'}</td>
+    <td class="muted">${r.gm||'—'}</td>
+    <td style="color:var(--accent2);font-weight:500">${r.cp||'—'}</td>
+    <td class="name">${r.localidad||'—'}</td>
+    <td style="font-weight:500">${fmtN(r.visitas)}</td>
+    <td style="color:var(--sub)">${fmtN(r.proyectado)}</td>
+    <td>${fmtN(r.re)}</td>
+    <td>${fmtN(r.rp)}</td>
+    <td>${r.conv > 0 ? (r.conv*100).toFixed(1)+'%' : '—'}</td>
+  </tr>`).join('');
+  if(!rows.length) tbody.innerHTML = '<tr><td colspan="9" class="nodata">Sin resultados</td></tr>';
+
+  // Update sort indicators
+  document.querySelectorAll('#gTable thead th').forEach((th,i) => {
+    const keys = ['territorio','gm','cp','localidad','visitas','proyectado','re','rp','conv'];
+    th.className = gSort.k === keys[i] ? (gSort.asc ? 'sort-asc' : 'sort-desc') : '';
+    th.className += ' '; // allow onclick
+  });
+}
+
+// ── Operativa Table ───────────────────────────────────────────────────────
+function sortO(k){
+  if(oSort.k === k) oSort.asc = !oSort.asc;
+  else { oSort.k = k; oSort.asc = false; }
+  renderOTable();
+}
+
+function renderOTable(){
+  const fTerritorial = document.getElementById('oTerritorial').value;
+  const fTerritorio  = document.getElementById('oTerritorio').value;
+  const fZona        = document.getElementById('oZona').value;
+  const fEstado      = document.getElementById('oEstado').value;
+  const fSearch      = document.getElementById('oSearch').value.toLowerCase().trim();
+
+  // Update territorio options based on territorial filter
+  const selT = document.getElementById('oTerritorio');
+  const prevT = selT.value;
+  const territorios = [...new Set(
+    Z.cps.filter(r => !fTerritorial || r.territorial === fTerritorial).map(r=>r.territorio).filter(Boolean)
+  )].sort();
+  selT.innerHTML = '<option value="">Todos los territorios</option>';
+  territorios.forEach(v => {
+    const o = document.createElement('option');
+    o.value = o.textContent = v;
+    if(v === prevT) o.selected = true;
+    selT.appendChild(o);
+  });
+
+  let rows = Z.cps.filter(r => {
+    if(fTerritorial && r.territorial !== fTerritorial) return false;
+    if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
+    if(fZona        && r.zona        !== fZona)         return false;
+    if(fEstado      && r.estado      !== fEstado)       return false;
+    if(fSearch){
+      const hay = [r.cp,r.localidad,r.partido,r.gm,r.sales].join(' ').toLowerCase();
+      if(!hay.includes(fSearch)) return false;
+    }
+    return true;
+  });
+
+  rows.sort((a,b) => {
+    let va = a[oSort.k] ?? '', vb = b[oSort.k] ?? '';
+    if(typeof va === 'string') return oSort.asc ? va.localeCompare(vb,'es') : vb.localeCompare(va,'es');
+    return oSort.asc ? va - vb : vb - va;
+  });
+
+  document.getElementById('oCount').textContent = rows.length + ' CPs';
+
+  const estadoColors = {ahead:'var(--green)', on:'var(--accent2)', behind:'var(--amber)', zero:'var(--dim)'};
+
+  const tbody = document.getElementById('oTbody');
+  tbody.innerHTML = rows.map(r => {
+    const barW = r.visitas > 0 ? Math.min((r.visitas / Math.max(r.proyectado, 1)) * 100, 100) : 0;
+    const barC = r.estado === 'ahead' ? 'var(--green)' : r.estado === 'on' ? 'var(--accent2)' : r.estado === 'behind' ? 'var(--amber)' : 'var(--dim)';
+    return `<tr>
+      <td class="muted">${r.territorial||'—'}</td>
+      <td class="muted">${r.territorio||'—'}</td>
+      <td class="muted">${r.gm||'—'}</td>
+      <td style="color:var(--accent2);font-weight:500">${r.cp||'—'}</td>
+      <td class="name">${r.localidad||'—'}</td>
+      <td style="font-weight:500">${fmtN(r.visitas)}</td>
+      <td style="color:var(--sub)">${r.esp_falt > 0 ? '+'+Math.round(r.esp_falt) : r.esp_falt < 0 ? Math.round(r.esp_falt) : '—'}</td>
+      <td>
+        <span style="margin-right:6px">${fmtN(r.proyectado)}</span>
+        <span class="pbar"><span class="pbar-fill" style="width:${barW}%;background:${barC};display:block;height:100%;border-radius:2px"></span></span>
+      </td>
+      <td>${fmtN(r.re)}</td>
+      <td>${fmtN(r.rp)}</td>
+      <td>${r.conv > 0 ? (r.conv*100).toFixed(1)+'%' : '—'}</td>
+      <td><span class="sema ${r.estado}" style="color:${estadoColors[r.estado]}">${estadoLabel(r.estado)}</span></td>
+    </tr>`;
+  }).join('');
+  if(!rows.length) tbody.innerHTML = '<tr><td colspan="12" class="nodata">Sin resultados</td></tr>';
+}
+
+
+// ── CP Coordinates ───────────────────────────────────────────────────────
+const CP_COORDS = {"C1419":[-34.592106,-58.492422],"B2761":[-21.946447,-66.051476],"B2804":[-34.18106,-58.971303],"B1640":[-34.494808,-58.516455],"B1878":[-34.720634,-58.254605],"B1643":[-34.464089,-58.534761],"C1431":[-34.570398,-58.491387],"B2814":[-34.328347,-58.986686],"B1665":[-34.515105,-58.766246],"B1714":[-34.649546,-58.698742],"B1744":[-34.547879,-58.812733],"B1722":[-34.6685,-58.728248],"B1754":[-34.687408,-58.563263],"B1824":[-34.706745,-58.391729],"B1776":[-34.756068,-58.486606],"B1748":[-34.602233,-58.949019],"B1712":[-34.655458,-58.645244],"B1686":[-34.589571,-58.62755],"B1706":[-34.644068,-58.595643],"B1801":[-34.871276,-58.511116],"B1807":[-34.871276,-58.511116],"B1815":[-35.123808,-58.892061],"B1816":[-23.394223,-64.425745],"B1752":[-34.666363,-58.529799],"B1704":[-34.654907,-58.553635],"B1833":[-34.789326,-58.408437],"B1839":[-34.756068,-58.486606],"B1858":[-34.922242,-58.400905],"B1702":[-34.634712,-58.539735],"B1873":[-34.667404,-58.356413],"C1414":[-34.615924,-58.440603],"B1885":[-34.79674,-58.170395],"B1887":[-34.796581,-58.276012],"B1905":[-35.073158,-57.964828],"B1909":[-35.002552,-57.872443],"B1921":[-35.530133,-57.328567],"B1926":[-34.860715,-57.912381],"B1929":[-34.854786,-57.855974],"B1984":[-35.073347,-58.287532],"C1426":[-34.576023,-58.448355],"B2802":[-34.251323,-58.915655],"B1609":[-34.501226,-58.567167],"B1642":[-34.470829,-58.52861],"B2805":[-34.397581,-58.658748],"B1611":[-34.493805,-58.627272],"B6700":[-34.753117,-58.443911],"B1716":[-34.700321,-58.683472],"B1746":[-34.635439,-58.86051],"B6600":[-34.652386,-59.429332],"B1644":[-34.456289,-58.546624],"B1727":[-34.791101,-58.835604],"B1625":[-34.324425,-58.758865],"B1663":[-34.543055,-58.711858],"B1623":[-34.391215,-58.738493],"B1723":[-34.706132,-58.779181],"B1650":[-34.574396,-58.574581],"B1742":[-34.656654,-58.762756],"B7001":[-37.133331,-59.366661],"B7003":[-37.27977,-59.362913],"B7013":[-37.123939,-59.105079],"B7101":[-36.51956,-57.324442],"B7103":[-36.406402,-56.943338],"B7112":[-36.637346,-56.688971],"B7114":[-36.08956,-57.80191],"B1981":[-35.183775,-57.948666],"B7118":[-36.641658,-57.792121],"B7119":[-36.883083,-57.356663],"B1983":[-35.071471,-58.166513],"B7116":[-35.872831,-57.897107],"B7135":[-35.49354,-57.772734],"B7174":[-37.445766,-57.72878],"B7221":[-35.374968,-58.851642],"B7503":[-38.643768,-59.600048],"B7511":[-38.806602,-59.735623],"B7601":[-38.006149,-57.709166],"B7631":[-38.554156,-58.702124],"B8002":[-38.718318,-62.266348],"B8019":[-38.884915,-62.057378],"B8115":[-38.813108,-62.099193],"B8118":[-38.485231,-61.892944],"B8135":[-38.987332,-61.28761],"B1753":[-34.658902,-58.586712],"B1822":[-34.67258,-58.407415],"C1405":[-34.594721,-58.44429],"B1684":[-34.59621,-58.591368],"B1825":[-34.72803,-58.354191],"B1757":[-34.749748,-58.584591],"B1759":[-34.772706,-58.645682],"B1763":[-34.849583,-58.657086],"B1765":[-34.708466,-58.585867],"B1826":[-34.721214,-58.39851],"C1408":[-34.645565,-58.519354],"B1768":[-34.686645,-58.494193],"B1770":[-34.707068,-58.515724],"B1772":[-34.698985,-58.485891],"B1774":[-34.719867,-58.473544],"B1778":[-34.729375,-58.526599],"B1785":[-34.707068,-58.515724],"B1820":[-34.713272,-58.371086],"C1058":[-34.596656,-58.379126],"C1121":[-34.587382,-58.397276],"C1417":[-34.600688,-58.514393],"C1126":[-34.590086,-58.395998],"B1761":[-34.756089,-58.673547],"C1112":[-34.587211,-58.390937],"B1868":[-34.668052,-58.38782],"B1869":[-34.685129,-58.372658],"C1001":[-34.592703,-58.375436],"C1002":[-34.613087,-58.38136],"C1003":[-34.603699,-58.381163],"C1004":[-34.603699,-58.381163],"C1005":[-34.603699,-58.381163],"C1006":[-34.592703,-58.375436],"B1685":[-34.59621,-58.591368],"C1008":[-34.613087,-58.38136],"B1755":[-34.709381,-58.623675],"C1010":[-34.603699,-58.381163],"B1764":[-34.849583,-58.657086],"C1012":[-34.613087,-58.38136],"C1013":[-34.603699,-58.381163],"C1011":[-34.592703,-58.375436],"C1015":[-34.603699,-58.381163],"C1016":[-34.587382,-58.397276],"C1017":[-34.603699,-58.381163],"C1021":[-34.587382,-58.397276],"C1025":[-34.604505,-58.39441],"C1057":[-34.592703,-58.375436],"C1061":[-34.587382,-58.397276],"C1124":[-34.594495,-58.396829],"C1023":[-34.610122,-58.405941],"C1024":[-34.610122,-58.405941],"C1125":[-34.591601,-58.399133],"C1026":[-34.610122,-58.405941],"C1027":[-34.604517,-58.398263],"C1028":[-34.610122,-58.405941],"C1029":[-34.604798,-58.40095],"C1030":[-34.610122,-58.405941],"C1031":[-34.60492,-58.403866],"C1032":[-34.604589,-58.405031],"C1033":[-34.613087,-58.38136],"C1035":[-34.613087,-58.38136],"C1036":[-34.603699,-58.381163],"C1037":[-34.603699,-58.381163],"C1038":[-34.603699,-58.381163],"C1039":[-34.610122,-58.405941],"C1040":[-34.610122,-58.405941],"C1041":[-34.603699,-58.381163],"C1042":[-34.603699,-58.381163],"C1043":[-34.603746,-58.381649],"C1044":[-34.610122,-58.405941],"C1045":[-34.60496,-58.399798],"C1046":[-34.610122,-58.405941],"C1047":[-34.603699,-58.381163],"C1048":[-34.603699,-58.381163],"C1049":[-34.603699,-58.381163],"C1050":[-34.610122,-58.405941],"C1051":[-34.610122,-58.405941],"C1052":[-34.602749,-58.401769],"C1053":[-34.599933,-58.376646],"B1707":[-34.634054,-58.57128],"C1055":[-34.603699,-58.381163],"B1751":[-34.676667,-58.513274],"B1823":[-34.685129,-58.372658],"C1056":[-34.587382,-58.397276],"C1111":[-34.59506,-58.395459],"C1113":[-34.587382,-58.397276],"C1117":[-34.587382,-58.397276],"C1062":[-34.593089,-58.385474],"C1063":[-34.621835,-58.371394],"C1064":[-34.621835,-58.371394],"C1065":[-34.621835,-58.371394],"C1066":[-34.621835,-58.371394],"C1067":[-34.613087,-58.38136],"C1068":[-34.618422,-58.374828],"C1069":[-34.621835,-58.371394],"C1070":[-34.621835,-58.371394],"C1071":[-34.617405,-58.379178],"C1072":[-34.626124,-58.385952],"C1073":[-34.626124,-58.385952],"C1074":[-34.626124,-58.385952],"C1075":[-34.626124,-58.385952],"C1076":[-34.626124,-58.385952],"C1077":[-34.615418,-58.388852],"C1078":[-34.616384,-58.390232],"C1079":[-34.613087,-58.38136],"C1080":[-34.610122,-58.405941],"C1081":[-34.612452,-58.395776],"C1082":[-34.612595,-58.401054],"C1083":[-34.610122,-58.405941],"C1084":[-34.613087,-58.38136],"C1085":[-34.609322,-58.384984],"C1086":[-34.613087,-58.38136],"C1087":[-34.609884,-58.373777],"C1088":[-34.611075,-58.38509],"C1089":[-34.613087,-58.38136],"C1090":[-34.611782,-58.398773],"C1091":[-34.613087,-58.38136],"C1092":[-34.613087,-58.38136],"C1093":[-34.613087,-58.38136],"C1094":[-34.613282,-58.398044],"C1095":[-34.613087,-58.38136],"C1096":[-34.613087,-58.38136],"C1097":[-34.613087,-58.38136],"C1098":[-34.621835,-58.371394],"C1099":[-34.621835,-58.371394],"C1100":[-34.626124,-58.385952],"C1101":[-34.618745,-58.379162],"C1102":[-34.621835,-58.371394],"C1103":[-34.621835,-58.371394],"C1104":[-34.645404,-58.381284],"C1106":[-34.603674,-58.382121],"C1107":[-34.603674,-58.382121],"C1110":[-34.615772,-58.387432],"C1128":[-34.587382,-58.397276],"C1007":[-34.592703,-58.375436],"C1009":[-34.603699,-58.381163],"C1014":[-34.587382,-58.397276],"C1018":[-34.594137,-58.389524],"C1019":[-34.587382,-58.397276],"C1020":[-34.587382,-58.397276],"C1022":[-34.604695,-58.392048],"C1054":[-34.592703,-58.375436],"C1059":[-34.595497,-58.382164],"C1060":[-34.597025,-58.390521],"C1114":[-34.593053,-58.397562],"C1115":[-34.587382,-58.397276],"C1116":[-34.587382,-58.397276],"C1118":[-34.587382,-58.397276],"C1119":[-34.587382,-58.397276],"C1120":[-34.59948,-58.398761],"C1122":[-34.597117,-58.398314],"C1123":[-34.595219,-58.398802],"C1130":[-34.630911,-58.386663],"C1133":[-34.627961,-58.390927],"C1134":[-34.626124,-58.385952],"C1135":[-34.628061,-58.387454],"C1136":[-34.627079,-58.38472],"C1137":[-34.626124,-58.385952],"C1138":[-34.626157,-58.380072],"C1139":[-34.626124,-58.385952],"C1140":[-34.626124,-58.385952],"C1141":[-34.624287,-58.373129],"C1143":[-34.62706,-58.371828],"C1147":[-34.621835,-58.371394],"C1148":[-34.623274,-58.387792],"C1150":[-34.621835,-58.371394],"C1151":[-34.624346,-58.385099],"C1152":[-34.633173,-58.385442],"C1153":[-34.626124,-58.385952],"C1154":[-34.626124,-58.385952],"C1155":[-34.621835,-58.371394],"C1156":[-34.621835,-58.371394],"C1157":[-34.621835,-58.371394],"C1158":[-34.621835,-58.371394],"C1159":[-34.63331,-58.361784],"C1160":[-34.634528,-58.360981],"C1161":[-34.635011,-58.364151],"C1162":[-34.634496,-58.363134],"C1163":[-34.638986,-58.365313],"C1164":[-34.643022,-58.366748],"C1165":[-34.631462,-58.368878],"C1166":[-34.634496,-58.363134],"C1167":[-34.642681,-58.363662],"C1168":[-34.634496,-58.363134],"C1169":[-34.643475,-58.36117],"C1170":[-34.610122,-58.405941],"C1171":[-34.604354,-58.411372],"C1172":[-34.598921,-58.415372],"C1173":[-34.610122,-58.405941],"C1174":[-34.611445,-58.420994],"C1175":[-34.611445,-58.420994],"C1176":[-34.5991,-58.418614],"C1177":[-34.611445,-58.420994],"C1178":[-34.614206,-58.419984],"C1179":[-34.611445,-58.420994],"C1180":[-34.611445,-58.420994],"C1181":[-34.611445,-58.420994],"C1182":[-34.606517,-58.425896],"C1183":[-34.611445,-58.420994],"C1184":[-34.611445,-58.420994],"C1185":[-34.611445,-58.420994],"C1186":[-34.610122,-58.405941],"C1187":[-34.59822,-58.409131],"C1188":[-34.597551,-58.419955],"B1619":[-34.420789,-58.740018],"B1859":[-34.805449,-58.306233],"B1860":[-34.774071,-58.197426],"B1861":[-34.783546,-58.173824],"C1416":[-34.610504,-58.471682],"B1627":[-34.381519,-58.823635],"C5000":[-31.420083,-64.188776],"C5014":[-31.451318,-64.176855],"C5001":[-31.379676,-64.176741],"C5152":[-31.420783,-64.499214],"C5006":[-31.420083,-64.188776],"C5012":[-31.420083,-64.188776],"C5008":[-31.420083,-64.188776],"C5009":[-31.420083,-64.188776],"C5010":[-31.420083,-64.188776],"C5003":[-31.420083,-64.188776],"C5016":[-31.420083,-64.188776],"C5022":[-31.420083,-64.188776],"C5105":[-31.307131,-64.284707],"C5850":[-32.176654,-64.1131],"C5002":[-31.420083,-64.188776],"C5186":[-31.658443,-64.427343],"C5019":[-31.420083,-64.188776],"C5151":[-31.350229,-64.398734],"C5900":[-32.410461,-63.243645],"C5021":[-31.420083,-64.188776],"C5017":[-31.420083,-64.188776],"C5189":[-27.699534,-55.25125],"D5703":[-32.438547,-65.009709],"D5707":[-26.718155,-64.333017],"D5711":[-32.438547,-65.009709],"D5736":[-33.501404,-65.791443],"D5753":[-32.562549,-65.776377],"D5777":[-32.342288,-65.201603],"B1661":[-34.563705,-58.690397],"B1678":[-34.609483,-58.563463],"B1688":[-34.620702,-58.63371],"B1655":[-34.54036,-58.572079],"B1718":[-34.666672,-58.700001],"B1615":[-34.482697,-58.742962],"B1667":[-35.032279,-60.280589],"B1613":[-34.499626,-58.691446],"B1682":[-34.586103,-58.593663],"E2824":[-33.311334,-62.178968],"E2828":[-32.53458,-58.932093],"E2841":[-32.824732,-59.237026],"E2843":[-32.720475,-59.39581],"E3105":[-31.74132,-60.511547],"E2846":[-33.743468,-59.155755],"E2848":[-38.828814,-62.694329],"E2852":[-33.152264,-59.21616],"E3155":[-32.03089,-60.307184],"M5516":[-32.950001,-68.816681],"M5528":[-32.980846,-68.863048],"M5531":[-33.568618,-59.980318],"M5535":[-32.749043,-68.323678],"M5537":[-33.021551,-68.736364],"M5540":[-32.854369,-68.83816],"M5543":[-32.588722,-68.670876],"M5544":[-32.950001,-68.849998],"M5545":[-37.622813,-69.654955],"M5547":[-32.912928,-68.876937],"M5549":[-32.847185,-69.265339],"M5563":[-33.738207,-69.122818],"M5565":[-33.604356,-69.103155],"M5571":[-34.89698,-60.019073],"M5579":[-33.320035,-68.329769],"M5582":[-33.154339,-68.355048],"M5587":[-33.016933,-68.583359],"M5589":[-32.842925,-68.393245],"M5596":[-33.255844,-68.148644],"M5601":[-34.60424,-68.420378],"M5638":[-32.93333,-68.76667],"S2006":[-32.911787,-60.740702],"S2010":[-32.973767,-60.70298],"S2012":[-32.958702,-60.693042],"S2119":[-33.174621,-60.900759],"S2124":[-32.958702,-60.693042],"S2126":[-33.077618,-60.574074],"S2154":[-32.819482,-60.715304],"S2240":[-31.973493,-60.920606],"S2242":[-31.831768,-60.875757],"S3006":[-31.570413,-60.706912],"S3007":[-31.585228,-60.940168],"S3009":[-31.571668,-60.995693],"S3013":[-31.793737,-60.980281],"T4001":[-26.803912,-65.213662],"T4002":[-26.853,-65.226563],"T4117":[-26.81781,-65.093605],"T4172":[-26.811988,-65.301353],"T4182":[-26.886437,-65.006786],"T4186":[-26.88964,-64.742468],"B1870":[-34.656896,-58.362925],"B1626":[-34.324425,-58.758865],"B1620":[-34.407658,-58.771015],"B2812":[-34.333719,-59.113097],"B2764":[-34.232804,-59.208204],"B2813":[-34.280425,-59.107004],"B6703":[-34.433518,-59.125436],"B1628":[-34.333212,-58.844408],"C1430":[-34.578594,-58.469604],"B1612":[-34.502399,-58.667308],"B1657":[-34.569734,-58.60424],"E2821":[-33.015699,-58.466121],"E2823":[-33.299867,-58.711716],"E2826":[-32.625563,-58.702878],"E2840":[-33.139694,-59.322369],"C1189":[-34.610122,-58.405941],"E2854":[-33.03552,-59.003158],"B1715":[-34.616667,-58.683333],"B6706":[-34.599196,-59.171056],"E3269":[-31.86722,-58.446343],"B1666":[-34.517025,-58.79048],"B1721":[-34.702897,-58.744138],"C1190":[-34.610122,-58.405941],"B1803":[-34.868406,-58.540689],"B1805":[-34.834383,-58.494359],"B1827":[-34.732425,-58.464094],"B1844":[-34.766136,-58.341338],"B1845":[-34.785314,-58.369617],"B1848":[-34.845947,-58.367682],"B1851":[-34.818264,-58.425767],"C1191":[-34.611445,-58.420994],"B1876":[-34.725352,-58.302092],"B1886":[-34.796001,-58.194685],"B1913":[-35.079057,-57.511855],"B1917":[-35.389904,-57.336654],"B1924":[-34.869644,-57.881856],"B1912":[-34.920495,-57.953566],"B6701":[-34.485265,-59.215895],"B6708":[-34.490678,-59.07792],"B7105":[-36.368831,-56.718514],"B7113":[-36.762811,-56.67953],"B7160":[-36.863217,-57.881168],"B7163":[-37.002088,-57.133709],"B7172":[-37.084551,-57.828904],"B7610":[-38.088195,-57.556714],"B7612":[-37.48333,-57.43333],"B7635":[-38.164034,-58.782221],"B8001":[-38.718318,-62.266348],"B8003":[-38.718318,-62.266348],"B8103":[-38.784481,-62.267761],"B8105":[-38.717724,-62.392351],"B8153":[-38.919692,-60.535521],"C1192":[-34.611445,-58.420994],"C1193":[-34.610122,-58.405941],"C1194":[-34.603583,-58.417881],"C1195":[-34.602799,-58.426996],"C1196":[-34.611445,-58.420994],"C1197":[-34.611445,-58.420994],"C1198":[-34.610122,-58.405941],"C1199":[-34.611445,-58.420994],"C1200":[-34.608754,-58.422995],"C1201":[-34.611445,-58.420994],"C1202":[-34.613321,-58.424141],"C1203":[-34.610122,-58.405941],"C1204":[-34.611436,-58.420127],"C1205":[-34.611445,-58.420994],"C1206":[-34.610122,-58.405941],"C1207":[-34.610122,-58.405941],"C1208":[-34.610122,-58.405941],"C1209":[-34.610122,-58.405941],"C1210":[-34.611445,-58.420994],"C1211":[-34.610122,-58.405941],"C1212":[-34.611445,-58.420994],"C1213":[-34.602446,-58.406385],"C1214":[-34.610122,-58.405941],"C1215":[-34.607283,-58.40938],"C1216":[-34.621983,-58.421905],"C1217":[-34.622029,-58.419669],"C1218":[-34.611445,-58.420994],"C1219":[-34.623793,-58.402256],"C1220":[-34.623793,-58.402256],"C1221":[-34.623793,-58.402256],"C1222":[-34.623793,-58.402256],"C1223":[-34.610122,-58.405941],"C1224":[-34.610122,-58.405941],"C1225":[-34.623793,-58.402256],"C1226":[-34.630538,-58.419221],"C1227":[-34.61887,-58.398209],"C1228":[-34.630538,-58.419221],"C1229":[-34.623793,-58.402256],"C1230":[-34.623793,-58.402256],"C1231":[-34.623793,-58.402256],"C1232":[-34.623793,-58.402256],"C1233":[-34.630538,-58.419221],"C1234":[-34.621924,-58.426427],"C1235":[-34.630538,-58.419221],"C1236":[-34.630538,-58.419221],"C1237":[-34.633282,-58.41851],"C1238":[-34.633939,-58.41825],"C1239":[-34.632303,-58.415662],"C1240":[-34.633861,-58.415851],"C1241":[-34.630483,-58.411726],"C1242":[-34.632071,-58.409689],"C1243":[-34.630538,-58.419221],"C1244":[-34.623793,-58.402256],"C1245":[-34.623793,-58.402256],"C1246":[-34.623793,-58.402256],"C1247":[-34.623793,-58.402256],"C1248":[-34.626834,-58.397814],"C1249":[-34.623793,-58.402256],"C1250":[-34.611445,-58.420994],"C1251":[-34.62507,-58.394763],"C1252":[-34.623793,-58.402256],"C1253":[-34.623793,-58.402256],"C1254":[-34.627115,-58.408251],"B1884":[-34.762001,-58.211296],"B1879":[-34.75047,-58.285891],"C5004":[-31.420083,-64.188776],"C5011":[-31.420083,-64.188776],"C5145":[-31.311146,-64.176127],"C5854":[-32.191642,-64.255115],"C5101":[-31.460932,-64.351769],"C5166":[-31.246813,-64.470381],"C5125":[-34.479298,-58.722557],"D5701":[-33.219715,-66.23086],"D5710":[-33.183078,-66.31292],"C5889":[-26.718155,-64.333017],"E3101":[-31.74132,-60.511547],"E3107":[-31.790299,-60.441224],"M5504":[-32.928627,-68.858396],"M5529":[-32.965758,-68.673132],"M5541":[-32.816667,-68.766667],"M5567":[-33.734572,-69.119664],"M5585":[-33.101443,-68.563856],"M5603":[-34.666167,-68.388698],"M5609":[-34.593086,-67.883277],"S2142":[-32.872519,-60.744661],"S3008":[-31.573562,-60.725487],"S3018":[-31.490877,-60.735677],"S3080":[-31.448986,-60.930366],"T4109":[-26.83411,-65.16542],"B1881":[-34.777842,-58.308243],"B1616":[-34.479665,-58.703033],"B6614":[-34.608342,-59.751612],"B1882":[-34.764049,-58.263947],"B1739":[-34.89213,-58.918854],"B1660":[-34.515105,-58.766246],"B1713":[-34.617909,-58.680186],"C1255":[-34.634353,-58.422692],"B1808":[-34.964455,-58.650126],"B1821":[-34.744611,-58.391732],"B1841":[-34.827179,-58.462012],"B1837":[-34.803055,-58.221469],"B1889":[-34.826605,-58.226139],"B1895":[-34.885401,-58.12206],"B1915":[-34.887277,-57.998664],"B1980":[-35.165015,-58.223439],"B1891":[-34.865016,-58.197183],"B1911":[-35.078951,-57.744119],"B1925":[-34.860234,-57.913875],"B7136":[-35.685508,-57.955456],"B1664":[-34.434499,-58.780729],"B7100":[-36.315232,-57.675311],"B7611":[-38.005477,-57.542611],"C1256":[-34.629637,-58.409162],"C1257":[-34.63196,-58.421337],"C1258":[-34.623793,-58.402256],"C1259":[-34.632745,-58.410021],"C1260":[-34.623793,-58.402256],"C1261":[-34.633595,-58.401929],"C1262":[-34.636232,-58.400484],"C1263":[-34.636232,-58.400484],"C1264":[-34.635588,-58.399369],"C1265":[-34.634782,-58.370318],"C1266":[-34.64622,-58.368099],"C1267":[-34.638884,-58.372923],"C1268":[-34.634892,-58.373632],"C1269":[-34.644914,-58.370869],"C1270":[-34.63979,-58.374401],"C1271":[-34.651579,-58.37106],"C1272":[-34.645404,-58.381284],"C1273":[-34.653979,-58.378042],"C5109":[-31.233896,-64.318291],"C5020":[-31.461818,-64.095653],"C5870":[-32.562549,-65.776377],"D5881":[-32.347833,-65.015756],"M5511":[-32.950741,-68.799141],"M5561":[-33.462294,-69.143194],"M5584":[-33.051797,-68.561427],"M5594":[-33.298202,-68.047463],"M5615":[-34.582848,-68.544262],"S2004":[-32.985364,-60.677811],"S2007":[-32.924384,-60.719626],"S2008":[-32.958702,-60.693042],"S3014":[-31.518244,-60.678609],"S3017":[-31.730988,-60.814705],"T4101":[-26.775773,-65.196508],"T4105":[-26.817379,-65.308772],"T4111":[-26.899432,-65.103228],"B1853":[-34.819206,-58.271997],"B1614":[-34.511426,-58.679424],"E2820":[-33.008493,-58.536994],"E3280":[-32.237046,-58.142509],"C1274":[-34.638709,-58.379415],"B1745":[-34.639405,-58.828786],"B1749":[-34.619988,-58.931078],"C1275":[-34.650677,-58.377125],"B1802":[-34.81647,-58.537242],"B1871":[-34.654154,-58.346451],"B1902":[-34.920495,-57.953566],"B1908":[-34.935706,-58.001558],"B1910":[-34.920495,-57.953566],"B1914":[-34.920495,-57.953566],"B1931":[-34.825534,-57.965592],"B1904":[-34.920495,-57.953566],"B1629":[-34.459713,-58.9124],"B7620":[-37.846407,-58.255458],"C1276":[-34.645404,-58.381284],"C1277":[-34.651366,-58.381085],"C5960":[-31.650785,-63.905845],"C5013":[-31.390289,-64.139892],"C5194":[-31.977665,-64.55941],"M5517":[-33.030035,-68.819521],"M5525":[-32.853578,-68.715637],"M5569":[-33.778605,-69.057871],"M5573":[-33.144147,-68.483677],"S2013":[-32.958702,-60.693042],"S3001":[-27.378428,-65.608514],"T4178":[-26.950001,-65.01667],"B1669":[-34.44768,-58.805239],"C1278":[-34.653888,-58.384439],"B1838":[-34.799881,-58.451364],"B1862":[-34.917484,-58.377827],"B1865":[-35.024908,-58.423088],"B1773":[-34.732425,-58.464094],"B1894":[-34.841733,-58.15806],"B7111":[-36.686366,-56.679198],"B7604":[-37.978937,-57.581041],"B8150":[-38.719442,-61.288459],"C5158":[-31.314272,-64.464569],"C5018":[-31.420083,-64.188776],"C5121":[-31.8149,-64.290264],"C5933":[-32.323293,-63.869385],"C5984":[-32.161588,-63.467259],"M5502":[-32.883894,-68.839023],"M5519":[-32.908109,-68.827308],"M5523":[-32.911479,-68.767444],"M5527":[-37.575225,-63.430816],"M5533":[-32.869374,-68.773314],"S2001":[-32.958702,-60.693042],"S2009":[-32.959111,-60.714177],"S2011":[-32.958702,-60.693042],"B1631":[-34.420217,-58.868223],"E3260":[-32.489206,-58.230648],"C1279":[-34.652558,-58.386194],"B1812":[-34.910459,-58.593062],"B1836":[-34.796506,-58.429226],"B1856":[-34.888401,-58.390141],"B1864":[-34.984519,-58.376018],"B1893":[-34.9047,-58.180749],"C5164":[-31.279255,-64.463614],"C5980":[-32.041326,-63.570292],"M5509":[-33.119401,-68.886894],"S2134":[-32.897695,-60.906797],"B1635":[-34.437553,-58.807232],"B1633":[-34.434913,-58.990434],"B1634":[-34.485219,-58.878224],"B1880":[-34.762001,-58.211296],"B1766":[-34.68552,-58.532003],"C1280":[-34.645404,-58.381284],"B1906":[-34.920495,-57.953566],"B1630":[-34.466315,-58.915372],"B7107":[-36.544327,-56.690912],"B7605":[-38.173056,-57.651944],"B7607":[-38.250308,-57.789406],"B8109":[-38.996633,-61.551563],"C5153":[-31.482522,-64.576536],"C5107":[-31.06219,-64.300371],"M5503":[-32.929094,-68.79632],"M5513":[-32.968643,-68.75578],"B1740":[-34.547879,-58.812733],"B1724":[-34.719704,-58.792277],"B1733":[-34.79321,-59.03013],"B1874":[-34.695385,-58.3321],"B1903":[-34.98541,-58.087069],"B7109":[-38.416097,-63.616672],"C2434":[-31.419215,-63.05086],"C5111":[-31.351925,-64.234144],"C5113":[-31.136896,-64.296433],"M5560":[-33.60223,-69.383116],"S2002":[-32.958702,-60.693042],"S2152":[-32.858024,-60.703518],"B1843":[-34.777842,-58.308243],"C1281":[-34.644104,-58.391647],"B1854":[-34.86274,-58.389448],"B1835":[-34.883911,-58.419476],"B7106":[-36.487593,-56.693458],"B7608":[-38.030947,-57.585285],"B7609":[-38.173056,-57.651944],"B7630":[-38.554497,-58.739609],"C5117":[-37.895659,-65.095779],"S3002":[-31.625951,-60.701162],"T4103":[-26.635334,-65.207026],"B1736":[-34.590139,-58.741457],"C1282":[-34.645404,-58.381284],"B1806":[-34.88795,-58.565291],"C1283":[-34.638203,-58.389396],"B1849":[-34.799709,-58.337595],"B1855":[-34.770055,-58.29473],"C5123":[-31.555658,-64.006485],"C5187":[-36.368831,-56.718514],"C5214":[-32.410461,-63.243645],"B1863":[-34.811118,-58.238888],"B1632":[-34.451639,-59.003605],"B1610":[-34.455019,-58.680672],"B1624":[-34.417153,-58.597914],"B6705":[-34.436053,-59.260215],"B2760":[-34.243152,-59.474337],"B1731":[-34.827487,-58.939258],"B1804":[-34.853363,-58.521207],"B1872":[-34.683258,-58.343994],"B1901":[-34.998548,-58.046505],"B7603":[-38.110516,-57.841152],"C1284":[-34.645404,-58.381284],"C5220":[-30.981628,-64.0954],"C5231":[-32.438547,-65.009709],"S2003":[-32.96335,-60.676774],"B1737":[-34.752181,-58.804266],"C1285":[-34.654528,-58.389294],"B1890":[-34.827236,-58.18137],"C5809":[-30.381922,-60.329883],"D5730":[-33.675442,-65.458069],"M5577":[-33.194461,-68.464489],"S2005":[-32.958702,-60.693042],"S2132":[-32.921536,-60.810989],"T4107":[-29.237582,-64.0532],"B1646":[-34.441722,-58.554265],"B1867":[-34.836416,-58.286038],"B1645":[-34.46052,-58.572234],"B1687":[-34.580042,-58.609628],"B1780":[-34.675668,-58.490595],"B1847":[-34.793715,-58.360748],"C1439":[-34.672922,-58.481074],"B1602":[-34.53295,-58.490906],"B1608":[-34.452025,-58.613694],"B7108":[-36.609208,-56.685815],"B7606":[-38.005477,-57.542611],"C5851":[-32.105054,-64.332601],"M5507":[-32.993452,-68.886935],"B1781":[-34.743455,-58.802475],"B1814":[-35.032585,-58.733852],"B1875":[-34.704079,-58.320599],"B1897":[-34.889614,-58.046105],"B7130":[-35.577672,-58.013646],"B1603":[-34.551081,-58.508405],"C1440":[-34.628247,-58.484411],"C5853":[-38.416097,-63.616672],"C5875":[-31.730033,-65.005024],"M5515":[-32.958493,-68.789548],"S3004":[-31.604709,-60.684374],"B1689":[-34.721214,-58.39851],"B7165":[-37.338347,-57.031096],"C1286":[-34.645404,-58.381284],"C5879":[-26.687892,-64.945145],"C5885":[-31.797362,-65.004274],"M5570":[-33.02711,-68.45918],"B1641":[-34.475271,-58.496585],"B1784":[-34.784842,-58.834195],"C1287":[-34.638955,-58.380166],"B1604":[-34.538609,-58.514587],"C5887":[-30.741041,-59.643972],"B1605":[-34.530423,-58.52435],"B1662":[-34.547778,-58.704434],"B1692":[-34.558253,-58.610948],"C1288":[-34.641732,-58.375421],"C5935":[-32.162364,-63.891753],"M5600":[-34.612892,-68.339062],"B1606":[-34.526494,-58.536018],"B1600":[-33.333467,-60.211049],"B1617":[-34.452971,-58.642987],"B1648":[-34.437668,-58.567125],"B1659":[-34.55861,-58.655067],"B1738":[-34.639405,-58.828786],"B1923":[-34.869644,-57.881856],"C5974":[-31.776847,-63.799876],"C6123":[-26.687892,-64.945145],"M5505":[-32.966671,-68.866669],"M5539":[-32.871131,-68.818106],"C1289":[-34.648044,-58.37955],"C1290":[-34.650875,-58.393843],"B1834":[-34.767834,-58.379253],"B1846":[-34.801235,-58.388905],"C1291":[-34.649576,-58.379815],"B1896":[-34.880724,-58.05727],"B7167":[-37.164258,-56.903056],"S3016":[-26.91667,-65.150002],"B1607":[-34.520257,-58.54454],"C1292":[-34.652103,-58.385524],"B1636":[-34.510551,-58.496391],"C5023":[-31.420083,-64.188776],"C5119":[-31.911201,-64.240998],"B1618":[-34.472097,-58.654021],"C1293":[-34.65404,-58.383797],"B1741":[-34.926472,-58.934624],"C1294":[-34.656515,-58.383967],"B1637":[-34.4987,-58.48878],"B7602":[-38.005477,-57.542611],"C5972":[-31.76667,-63.93333],"C5986":[-31.913429,-63.682063],"C1295":[-34.643451,-58.375304],"C1296":[-34.645189,-58.378493],"B1832":[-34.761182,-58.430248],"B1670":[-34.402644,-58.668478],"B1842":[-34.834383,-58.494359],"B1638":[-34.52812,-58.473816],"B1651":[-34.565943,-58.544302],"B1652":[-34.520257,-58.54454],"C1127":[-34.589524,-58.394564],"B1653":[-34.557945,-58.543019],"B1672":[-34.591472,-58.524655],"D5883":[-30.741041,-59.643972],"B1708":[-34.655861,-58.616721],"B1621":[-34.415171,-58.686755],"B1743":[-34.648688,-58.791185],"B1852":[-34.828623,-58.393334],"B7000":[-37.32375,-59.136045],"C1406":[-34.637484,-58.460145],"D5700":[-33.293254,-66.328307],"B1888":[-34.796581,-58.276012],"C5196":[-32.071006,-64.535883],"B1683":[-34.586103,-58.593663],"B1674":[-34.599205,-58.531681],"B1649":[-34.402413,-58.63038],"B1675":[-34.608649,-58.532327],"C1407":[-34.682892,-58.377459],"C1129":[-34.587382,-58.397276],"M5521":[-32.902821,-68.8047],"B1622":[-34.36026,-58.687255],"B6608":[-34.652614,-59.356062],"B1676":[-34.599064,-58.546734],"B2800":[-34.107625,-59.043526],"B2806":[-34.053105,-59.13467],"B6601":[-31.424755,-64.131303],"C1034":[-34.578066,-58.426532],"C1425":[-34.578066,-58.426532],"B1690":[-34.566442,-58.617446],"B6602":[-34.65102,-59.4306],"C1427":[-34.585999,-58.454436],"S3000":[-31.626425,-60.72425],"C1424":[-34.634062,-58.432882],"C1428":[-34.562084,-58.456686],"B2801":[-27.378428,-65.608514],"C1429":[-34.544791,-58.459879],"B6702":[-34.561004,-59.093868],"B6712":[-34.554065,-59.199126],"B6723":[-34.445291,-59.360767],"C1437":[-34.650058,-58.425415],"B1828":[-34.744611,-58.391732],"E3100":[-31.712781,-60.566832],"M5501":[-32.928627,-68.858396],"M5500":[-32.960706,-69.19756],"B1703":[-34.617162,-58.535721],"T4000":[-26.808285,-65.21759],"B8000":[-38.718318,-62.266348],"B7600":[-38.017427,-57.581067],"S2000":[-32.958702,-60.693042],"B1900":[-34.921633,-57.959907],"C5155":[-31.39055,-64.560341]};
+
+// ── Map ──────────────────────────────────────────────────────────────────
+let MAP = null;
+let MAP_MARKERS = null;
+
+const ESTADO_COLOR = {
+  ahead:  '#29c99a',
+  on:     '#2e7fff',
+  behind: '#e0a729',
+  zero:   '#344d66'
+};
+
+function initMap(){
+  if(MAP) return;
+  MAP = L.map('mapEl', {
+    center: [-34.6, -60.5],
+    zoom: 6,
+    zoomControl: true,
+    attributionControl: false
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd'
+  }).addTo(MAP);
+  MAP_MARKERS = L.layerGroup().addTo(MAP);
+}
+
+function renderMap(){
+  if(!Z) return;
+  initMap();
+
+  const fTerritorial = document.getElementById('mTerritorial').value;
+  const fTerritorio  = document.getElementById('mTerritorio').value;
+  const fZona        = document.getElementById('mZona').value;
+  const fEstado      = document.getElementById('mEstado').value;
+
+  // Update territorio options
+  const selT = document.getElementById('mTerritorio');
+  const prevT = selT.value;
+  const territorios = [...new Set(
+    Z.cps.filter(r => !fTerritorial || r.territorial === fTerritorial).map(r=>r.territorio).filter(Boolean)
+  )].sort();
+  selT.innerHTML = '<option value="">Todos los territorios</option>';
+  territorios.forEach(v => {
+    const o = document.createElement('option');
+    o.value = o.textContent = v;
+    if(v === prevT) o.selected = true;
+    selT.appendChild(o);
+  });
+
+  const rows = Z.cps.filter(r => {
+    if(fTerritorial && r.territorial !== fTerritorial) return false;
+    if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
+    if(fZona        && r.zona        !== fZona)         return false;
+    if(fEstado      && r.estado      !== fEstado)       return false;
+    return true;
+  });
+
+  MAP_MARKERS.clearLayers();
+
+  let visible = 0;
+  const counts = {ahead:0, on:0, behind:0, zero:0};
+
+  rows.forEach(r => {
+    const coords = CP_COORDS[r.cp];
+    if(!coords) return;
+    visible++;
+    counts[r.estado] = (counts[r.estado]||0) + 1;
+
+    const color = ESTADO_COLOR[r.estado] || '#344d66';
+    const radius = r.visitas > 0 ? Math.max(5, Math.min(12, 5 + r.visitas / 30)) : 5;
+
+    const marker = L.circleMarker(coords, {
+      radius,
+      fillColor: color,
+      color: color,
+      weight: 1.5,
+      opacity: .9,
+      fillOpacity: r.estado === 'zero' ? .3 : .75
+    });
+
+    const proy = r.proyectado > 0 ? r.proyectado : r.visitas;
+    const convStr = r.conv > 0 ? (r.conv*100).toFixed(1)+'%' : '—';
+    marker.bindPopup(`
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;min-width:200px">
+        <div style="font-weight:600;font-size:12px;margin-bottom:6px;color:#dce8f4">${r.cp} · ${r.localidad||''}</div>
+        <div style="color:#6e8ca8;margin-bottom:8px;font-size:10px">${r.territorial||''} / ${r.territorio||''}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 12px;font-size:10px">
+          <div style="color:#6e8ca8">Visitas</div><div style="color:#dce8f4;font-weight:500">${Math.round(r.visitas)}</div>
+          <div style="color:#6e8ca8">Proyectado</div><div style="color:#dce8f4;font-weight:500">${Math.round(proy)}</div>
+          <div style="color:#6e8ca8">RE</div><div style="color:#dce8f4">${Math.round(r.re)}</div>
+          <div style="color:#6e8ca8">RP</div><div style="color:#dce8f4">${Math.round(r.rp)}</div>
+          <div style="color:#6e8ca8">Conversión</div><div style="color:#dce8f4">${convStr}</div>
+        </div>
+        <div style="margin-top:8px;padding:4px 8px;border-radius:3px;font-size:10px;text-align:center;
+          background:${color}22;color:${color};border:1px solid ${color}44">
+          ${{ahead:'Adelantado',on:'En ritmo',behind:'Atrasado',zero:'Sin visitas'}[r.estado]}
+        </div>
+      </div>
+    `, {
+      maxWidth: 240,
+      className: 'map-popup'
+    });
+
+    MAP_MARKERS.addLayer(marker);
+  });
+
+  document.getElementById('mCount').textContent = visible + ' CPs';
+  document.getElementById('mapStats').innerHTML =
+    `<span style="color:var(--green)">${counts.ahead||0}</span> adel · ` +
+    `<span style="color:var(--accent2)">${counts.on||0}</span> ritmo · ` +
+    `<span style="color:var(--amber)">${counts.behind||0}</span> atr · ` +
+    `<span style="color:var(--dim)">${counts.zero||0}</span> sin vis`;
+
+  // Fit bounds if markers exist
+  if(visible > 0){
+    try{ MAP.fitBounds(MAP_MARKERS.getBounds(), {padding:[20,20]}); }catch(e){}
+  }
+}
+
+
+// ── Export Excel ─────────────────────────────────────────────────────────
+function exportExcel(view){
+  let rows, filename, headers;
+
+  if(view === 'G'){
+    const terrFilter = document.getElementById('gTerr').value;
+    rows = Z.cps.filter(r => !terrFilter || r.territorial === terrFilter);
+    filename = (terrFilter || 'Todos') + '_detalle.xlsx';
+    headers = ['Territorio','GM','CC','CP','Localidad','Partido','Provincia','Zona',
+               'Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
+    rows = rows.map(r => [
+      r.territorio, r.gm, r.cc, r.cp, r.localidad, r.partido, r.provincia, r.zona,
+      r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
+      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
+      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
+    ]);
+  } else {
+    const fTerritorial = document.getElementById('oTerritorial').value;
+    const fTerritorio  = document.getElementById('oTerritorio').value;
+    const fZona        = document.getElementById('oZona').value;
+    const fSearch      = document.getElementById('oSearch').value.toLowerCase().trim();
+    rows = Z.cps.filter(r => {
+      if(fTerritorial && r.territorial !== fTerritorial) return false;
+      if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
+      if(fZona        && r.zona        !== fZona)         return false;
+      if(fSearch){
+        const hay = [r.cp,r.localidad,r.partido,r.gm,r.sales].join(' ').toLowerCase();
+        if(!hay.includes(fSearch)) return false;
+      }
+      return true;
+    });
+    filename = (fTerritorial || 'Zonificacion') + '_CPs.xlsx';
+    headers = ['Territorial','Territorio','GM','CC','CP','Sales','Localidad','Partido',
+               'Provincia','Zona','Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
+    rows = rows.map(r => [
+      r.territorial, r.territorio, r.gm, r.cc, r.cp, r.sales, r.localidad, r.partido,
+      r.provincia, r.zona, r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
+      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
+      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
+    ]);
+  }
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+
+  // Column widths
+  ws['!cols'] = headers.map(h => ({wch: Math.max(h.length + 2, 12)}));
+
+  // Header style (bold background)
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  for(let c = range.s.c; c <= range.e.c; c++){
+    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
+    if(cell) cell.s = {font:{bold:true}, fill:{fgColor:{rgb:'1A2232'}}, alignment:{horizontal:'center'}};
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, 'CPs');
+
+  // If gerencial, also add Masters sheet
+  if(view === 'G' && Z.masters?.length){
+    const mHeaders = ['Colaborador','Visitas','FTE BU','FTE Real','Dif FTE','BPP BU','BPP Real'];
+    const mRows = Z.masters.map(m => [
+      m.nombre,
+      typeof m.visitas  === 'number' ? Math.round(m.visitas)    : m.visitas,
+      m.fteBU  ?? '',
+      typeof m.fteReal  === 'number' ? +m.fteReal.toFixed(1)    : '',
+      typeof m.difFTE   === 'number' ? +m.difFTE.toFixed(1)     : '',
+      typeof m.bppBU    === 'number' ? +m.bppBU.toFixed(2)      : '',
+      typeof m.bppReal  === 'number' ? +m.bppReal.toFixed(2)    : ''
+    ]);
+    const wsM = XLSX.utils.aoa_to_sheet([mHeaders, ...mRows]);
+    wsM['!cols'] = mHeaders.map(h => ({wch: Math.max(h.length + 2, 14)}));
+    XLSX.utils.book_append_sheet(wb, wsM, 'Masters');
+  }
+
+  XLSX.writeFile(wb, filename);
+}
+
+</script>
+</body>
+</html>
 
