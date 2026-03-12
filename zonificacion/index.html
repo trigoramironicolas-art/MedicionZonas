@@ -422,10 +422,10 @@ function parseFile(wb){
     const row = rtData[r-1];
     if(!row || !row[1]) continue;
     bppMap[row[1]] = {
-      bpp:      row[2],
-      difBpp:   row[3],
-      difVis:   row[4], // text message
-      ritmo:    row[5]
+      bpp:    typeof row[2] === 'number' ? row[2] : null,
+      difBpp: typeof row[3] === 'number' ? row[3] : null,
+      difVis: typeof row[4] === 'string' ? row[4] : null,
+      ritmo:  typeof row[5] === 'number' ? row[5] : null
     };
   }
 
@@ -435,11 +435,11 @@ function parseFile(wb){
     const row = rtData[r-1];
     if(!row || !row[1] || row[1]==='Total') continue;
     fteMap[row[1]] = {
-      fte:         row[2],
-      share:       row[3],
-      visEspMTD:   row[4],
-      realVsEsp:   row[5],
-      desvio:      row[6]
+      fte:       typeof row[2] === 'number' ? row[2] : null,
+      share:     typeof row[3] === 'number' ? row[3] : null,
+      visEspMTD: typeof row[4] === 'number' ? row[4] : null,
+      realVsEsp: typeof row[5] === 'number' ? row[5] : null,
+      desvio:    typeof row[6] === 'number' ? row[6] : null
     };
   }
 
@@ -449,10 +449,10 @@ function parseFile(wb){
     const row = rtData[r-1];
     if(!row || !row[1]) continue;
     visMap[row[1]] = {
-      visitas:    row[2],
-      difVsAnt:   row[3],
-      shareVis:   row[4],
-      delta:      row[5]
+      visitas:  typeof row[2] === 'number' ? row[2] : null,
+      difVsAnt: typeof row[3] === 'number' ? row[3] : null,
+      shareVis: typeof row[4] === 'number' ? row[4] : null,
+      delta:    typeof row[5] === 'number' ? row[5] : null
     };
   }
 
@@ -526,33 +526,42 @@ function parseFile(wb){
     });
   }
 
-  console.log('MASTERS parsed:', JSON.stringify(masters));
   normalizeCluster(cps);
   return { territoriales, masters, cps };
 }
 
 // ── Cluster scoring ──────────────────────────────────────────────────────
-// Called after all CPs are parsed — needs global max for normalization
-let _maxProy = 1;
 function calcCluster(vis, proy, conv){
-  // Placeholder — recalculated in normalizeCluster() after all CPs loaded
-  return {vis, proy, conv, score:0, label:'pending'};
+  return {score:0, estado:'sinvis'}; // placeholder, recalculated in normalizeCluster
 }
 function normalizeCluster(cps){
-  _maxProy = Math.max(...cps.map(r => r.proyectado), 1);
-  const maxConv = Math.max(...cps.map(r => r.conv || 0), 0.01);
-  cps.forEach(r => {
-    if(r.visitas === 0 && r.proyectado === 0){
-      r.estado = 'sinvis'; return;
-    }
-    const scoreVis  = r.proyectado / _maxProy;          // 0-1
-    const scoreConv = (r.conv || 0) / maxConv;          // 0-1
-    const score = scoreVis * 0.7 + scoreConv * 0.3;     // weighted
-    r.score = score;
-    r.estado = score >= 0.75 ? 'exc'
-             : score >= 0.55 ? 'muyb'
-             : score >= 0.35 ? 'bien'
-             : score >= 0.15 ? 'malo'
+  // Separate CPs with and without activity
+  const active = cps.filter(r => r.proyectado > 0 || r.visitas > 0);
+  const inactive = cps.filter(r => r.proyectado === 0 && r.visitas === 0);
+
+  // Mark inactive
+  inactive.forEach(r => { r.estado = 'sinvis'; r.score = -1; });
+
+  if(!active.length) return;
+
+  // Compute composite score per active CP: 70% projected visitas + 30% conversión
+  // Use max normalization within active CPs only
+  const maxProy = Math.max(...active.map(r => r.proyectado), 1);
+  const maxConv = Math.max(...active.map(r => r.conv || 0), 0.001);
+
+  active.forEach(r => {
+    r.score = (r.proyectado / maxProy) * 0.7 + ((r.conv || 0) / maxConv) * 0.3;
+  });
+
+  // Sort by score and assign quintiles (equal-count groups)
+  const sorted = [...active].sort((a,b) => a.score - b.score);
+  const n = sorted.length;
+  sorted.forEach((r, i) => {
+    const pct = i / n;
+    r.estado = pct >= 0.8 ? 'exc'
+             : pct >= 0.6 ? 'muyb'
+             : pct >= 0.4 ? 'bien'
+             : pct >= 0.2 ? 'malo'
              : 'muym';
   });
 }
@@ -635,7 +644,6 @@ function switchTab(t){
 
 // ── Masters Table ────────────────────────────────────────────────────────
 function renderMasters(){
-  console.log('renderMasters called, Z.masters:', Z?.masters?.length, Z?.masters);
   const tbody = document.getElementById('mastersTbody');
   if(!Z.masters || !Z.masters.length){
     tbody.innerHTML = '<tr><td colspan="7" class="nodata">Sin datos de Masters</td></tr>';
