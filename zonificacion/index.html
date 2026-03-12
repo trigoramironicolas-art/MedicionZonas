@@ -76,8 +76,10 @@ body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;
 .sec-title::after{content:'';flex:1;height:1px;background:var(--bd)}
 
 /* ── Territorial cards ── */
-.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:28px}
-.tcard{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:18px;
+.tcards{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:28px}
+@media(max-width:1100px){.tcards{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:700px){.tcards{grid-template-columns:repeat(2,1fr)}}
+.tcard{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;
   position:relative;overflow:hidden;transition:border-color .2s}
 .tcard:hover{border-color:var(--bd2)}
 .tcard::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
@@ -87,24 +89,24 @@ body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;
 .tcard.c3::before{background:var(--purple)}
 .tcard.c4::before{background:#e05a5a}
 
-.tc-name{font-size:11px;font-weight:600;color:var(--t);margin-bottom:12px;letter-spacing:.3px}
-.tc-rhythm{font-size:10px;padding:5px 10px;border-radius:4px;margin-bottom:14px;font-family:'IBM Plex Mono',monospace;
+.tc-name{font-size:11px;font-weight:600;color:var(--t);margin-bottom:8px;letter-spacing:.3px}
+.tc-rhythm{font-size:9px;padding:4px 8px;border-radius:4px;margin-bottom:10px;font-family:'IBM Plex Mono',monospace;
   font-weight:500;line-height:1.3}
 .tc-rhythm.ok{background:#29c99a18;color:var(--green);border:1px solid #29c99a30}
 .tc-rhythm.warn{background:#e0a72918;color:var(--amber);border:1px solid #e0a72930}
 .tc-rhythm.neutral{background:#2e7fff18;color:var(--accent2);border:1px solid #2e7fff30}
 
-.tc-kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.tc-kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
 .tc-kpi{text-align:center}
-.tc-kpi-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px}
-.tc-kpi-val{font-size:15px;font-weight:600;color:var(--t);line-height:1}
-.tc-kpi-delta{font-size:9px;margin-top:3px}
+.tc-kpi-lbl{font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:2px}
+.tc-kpi-val{font-size:14px;font-weight:600;color:var(--t);line-height:1}
+.tc-kpi-delta{font-size:9px;margin-top:2px}
 
 .dbadge{font-family:'IBM Plex Mono',monospace;font-size:9px;font-weight:500;padding:1px 5px;border-radius:3px}
 .dbadge.up{background:#29c99a20;color:var(--green)}
 .dbadge.dn{background:#e05a5a20;color:var(--red)}
 
-.tc-divider{height:1px;background:var(--bd);margin:12px 0}
+.tc-divider{height:1px;background:var(--bd);margin:8px 0}
 .tc-fte{display:flex;align-items:center;justify-content:space-between}
 .tc-fte-lbl{font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px}
 .tc-fte-val{font-size:12px;font-weight:600;color:var(--silver)}
@@ -234,30 +236,7 @@ tbody td.muted{color:var(--sub)}
         <tbody id="mastersTbody"></tbody>
       </table>
     </div>
-    <div class="sec-title">Detalle por Territorial</div>
-    <div class="filters">
-      <select id="gTerr" onchange="renderGTable()">
-        <option value="">Todos los territoriales</option>
-      </select>
-      <span class="results-count" id="gCount"></span>
-      <button class="rbtn" onclick="exportExcel('G')" style="margin-left:auto">↓ Exportar Excel</button>
-    </div>
-    <div class="tbl-wrap">
-      <table id="gTable">
-        <thead><tr>
-          <th onclick="sortG('territorio')">Territorio</th>
-          <th onclick="sortG('gm')">GM</th>
-          <th onclick="sortG('cp')">CP</th>
-          <th onclick="sortG('localidad')">Localidad</th>
-          <th onclick="sortG('visitas')">Visitas</th>
-          <th onclick="sortG('proyectado')">Proyectado</th>
-          <th onclick="sortG('re')">RE</th>
-          <th onclick="sortG('rp')">RP</th>
-          <th onclick="sortG('conv')">Conv%</th>
-        </tr></thead>
-        <tbody id="gTbody"></tbody>
-      </table>
-    </div>
+
   </div>
 
   <!-- Mapa -->
@@ -384,7 +363,6 @@ function loadFile(inp){
           buildFilters();
           renderTCards();
           renderMasters();
-          renderGTable();
           renderOTable();
         }, 200);
       } catch(err){
@@ -738,45 +716,6 @@ function renderTCards(){
     </div>`;
   }).join('');
   document.getElementById('tcards').innerHTML = html || '<div class="nodata">Sin datos de resumen territorial</div>';
-}
-
-// ── Gerencial Table ───────────────────────────────────────────────────────
-function sortG(k){
-  if(gSort.k === k) gSort.asc = !gSort.asc;
-  else { gSort.k = k; gSort.asc = false; }
-  renderGTable();
-}
-function renderGTable(){
-  const terrFilter = document.getElementById('gTerr').value;
-  let rows = Z.cps.filter(r => !terrFilter || r.territorial === terrFilter);
-
-  rows.sort((a,b) => {
-    let va = a[gSort.k] ?? '', vb = b[gSort.k] ?? '';
-    if(typeof va === 'string') return gSort.asc ? va.localeCompare(vb,'es') : vb.localeCompare(va,'es');
-    return gSort.asc ? va - vb : vb - va;
-  });
-
-  document.getElementById('gCount').textContent = rows.length + ' CPs';
-  const tbody = document.getElementById('gTbody');
-  tbody.innerHTML = rows.map(r => `<tr>
-    <td class="name">${r.territorio||'—'}</td>
-    <td class="muted">${r.gm||'—'}</td>
-    <td style="color:var(--accent2);font-weight:500">${r.cp||'—'}</td>
-    <td class="name">${r.localidad||'—'}</td>
-    <td style="font-weight:500">${fmtN(r.visitas)}</td>
-    <td style="color:var(--sub)">${fmtN(r.proyectado)}</td>
-    <td>${fmtN(r.re)}</td>
-    <td>${fmtN(r.rp)}</td>
-    <td>${r.conv > 0 ? (r.conv*100).toFixed(1)+'%' : '—'}</td>
-  </tr>`).join('');
-  if(!rows.length) tbody.innerHTML = '<tr><td colspan="9" class="nodata">Sin resultados</td></tr>';
-
-  // Update sort indicators
-  document.querySelectorAll('#gTable thead th').forEach((th,i) => {
-    const keys = ['territorio','gm','cp','localidad','visitas','proyectado','re','rp','conv'];
-    th.className = gSort.k === keys[i] ? (gSort.asc ? 'sort-asc' : 'sort-desc') : '';
-    th.className += ' '; // allow onclick
-  });
 }
 
 // ── Operativa Table ───────────────────────────────────────────────────────
