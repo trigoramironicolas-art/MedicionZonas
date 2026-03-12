@@ -114,6 +114,10 @@ body{background:var(--bg);color:var(--t);font-family:'IBM Plex Sans',sans-serif;
 .desv-lbl{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-bottom:4px;font-family:'IBM Plex Mono',monospace}
 .desv-bar{height:4px;background:var(--bd);border-radius:2px;overflow:hidden}
 .desv-fill{height:100%;border-radius:2px;transition:width .4s}
+.desv-bar-center{height:4px;background:var(--bd);border-radius:2px;position:relative;overflow:hidden}
+.desv-center-line{position:absolute;left:50%;top:0;width:1px;height:100%;background:var(--bd2);z-index:1}
+.desv-fill-right{position:absolute;left:50%;top:0;height:100%;border-radius:0 2px 2px 0;transition:width .4s}
+.desv-fill-left{position:absolute;right:50%;top:0;height:100%;border-radius:2px 0 0 2px;transition:width .4s}
 
 /* ── Filters ── */
 .filters{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
@@ -418,9 +422,9 @@ function parseFile(wb){
 
   // BPP table R25:F30 (0-indexed: rows 24-29, cols 1-5)
   const bppMap = {};
-  for(let r = 25; r <= 30; r++){
+  for(let r = 26; r <= 30; r++){
     const row = rtData[r-1];
-    if(!row || !row[1]) continue;
+    if(!row || !row[1] || row[1]==='Territorial' || row[1]==='Total') continue;
     bppMap[row[1]] = {
       bpp:    typeof row[2] === 'number' ? row[2] : null,
       difBpp: typeof row[3] === 'number' ? row[3] : null,
@@ -431,9 +435,9 @@ function parseFile(wb){
 
   // FTE + Visitas esperadas table R8:H13
   const fteMap = {};
-  for(let r = 8; r <= 13; r++){
+  for(let r = 9; r <= 13; r++){
     const row = rtData[r-1];
-    if(!row || !row[1] || row[1]==='Total') continue;
+    if(!row || !row[1] || row[1]==='Territorial' || row[1]==='Total') continue;
     fteMap[row[1]] = {
       fte:       typeof row[2] === 'number' ? row[2] : null,
       share:     typeof row[3] === 'number' ? row[3] : null,
@@ -445,12 +449,11 @@ function parseFile(wb){
 
   // Visitas table R16:E21
   const visMap = {};
-  for(let r = 16; r <= 21; r++){
+  for(let r = 17; r <= 21; r++){
     const row = rtData[r-1];
-    if(!row || !row[1]) continue;
+    if(!row || !row[1] || row[1]==='Territorial' || row[1]==='Total') continue;
     visMap[row[1]] = {
       visitas:  typeof row[2] === 'number' ? row[2] : null,
-      difVsAnt: typeof row[3] === 'number' ? row[3] : null,
       shareVis: typeof row[4] === 'number' ? row[4] : null,
       delta:    typeof row[5] === 'number' ? row[5] : null
     };
@@ -487,7 +490,6 @@ function parseFile(wb){
     realVsEsp: fteMap[t]?.realVsEsp ?? null,
     desvio:   fteMap[t]?.desvio   ?? null,
     visitas:  visMap[t]?.visitas  ?? null,
-    difVsAnt: visMap[t]?.difVsAnt ?? null,
     delta:    visMap[t]?.delta    ?? null,
   }));
 
@@ -531,9 +533,8 @@ function parseFile(wb){
 }
 
 // ── Cluster scoring ──────────────────────────────────────────────────────
-function calcCluster(vis, proy, conv){
-  return {score:0, estado:'sinvis'}; // placeholder, recalculated in normalizeCluster
-}
+// calcCluster is a no-op placeholder — normalizeCluster() sets r.estado after all CPs are built
+function calcCluster(vis, proy, conv){ return 'sinvis'; }
 function normalizeCluster(cps){
   // Separate CPs with and without activity
   const active = cps.filter(r => r.proyectado > 0 || r.visitas > 0);
@@ -577,9 +578,7 @@ const CLUSTER_CFG = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 const fmtN  = v => v == null ? '—' : Math.round(v).toLocaleString('es');
-const fmtD  = v => v == null ? '—' : v.toFixed(2);
 const fmtPct = v => v == null ? '—' : (v*100).toFixed(1)+'%';
-const fmtPp  = v => v == null ? '—' : (v*100).toFixed(1)+'pp';
 
 function badge(v, isPp=false){
   if(v == null || v === 0) return '';
@@ -713,7 +712,7 @@ function renderTCards(){
         <div class="tc-kpi">
           <div class="tc-kpi-lbl">VISITAS</div>
           <div class="tc-kpi-val">${fmtN(t.visitas)}</div>
-          <div class="tc-kpi-delta">${t.difVsAnt != null ? `<span style="font-size:9px;color:var(--sub)">+${t.difVsAnt} vs ant</span>` : ''}</div>
+          <div class="tc-kpi-delta">&nbsp;</div>
         </div>
         <div class="tc-kpi">
           <div class="tc-kpi-lbl">FTE</div>
@@ -728,8 +727,12 @@ function renderTCards(){
           <span>Real vs Esperado</span>
           <span style="color:${barColor}">${t.desvio > 0 ? '+' : ''}${Math.round(t.desvio)} vis</span>
         </div>
-        <div class="desv-bar">
-          <div class="desv-fill" style="width:${Math.min(Math.abs(t.realVsEsp||0)*100*5,100)}%;background:${barColor}"></div>
+        <div class="desv-bar-center">
+          <div class="desv-center-line"></div>
+          ${t.desvio >= 0
+            ? `<div class="desv-fill-right" style="width:${Math.min(Math.abs(t.realVsEsp||0)*400,50)}%;background:var(--green)"></div>`
+            : `<div class="desv-fill-left"  style="width:${Math.min(Math.abs(t.realVsEsp||0)*400,50)}%;background:var(--red)"></div>`
+          }
         </div>
       </div>` : ''}
     </div>`;
@@ -829,7 +832,7 @@ function renderOTable(){
   const tbody = document.getElementById('oTbody');
   tbody.innerHTML = rows.map(r => {
     const barW = r.visitas > 0 ? Math.min((r.visitas / Math.max(r.proyectado, 1)) * 100, 100) : 0;
-    const barC = r.estado === 'ahead' ? 'var(--green)' : r.estado === 'on' ? 'var(--accent2)' : r.estado === 'behind' ? 'var(--amber)' : 'var(--dim)';
+    const barC = estadoColor(r.estado);
     return `<tr>
       <td class="muted">${r.territorial||'—'}</td>
       <td class="muted">${r.territorio||'—'}</td>
@@ -925,7 +928,7 @@ function renderMap(){
       color: color,
       weight: 1.5,
       opacity: .9,
-      fillOpacity: r.estado === 'zero' ? .3 : .75
+      fillOpacity: r.estado === 'sinvis' ? .3 : .75
     });
 
     const proy = r.proyectado > 0 ? r.proyectado : r.visitas;
