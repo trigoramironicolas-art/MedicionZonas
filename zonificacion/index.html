@@ -303,7 +303,7 @@ tbody td.muted{color:var(--sub)}
       </select>
       <input id="oSearch" placeholder="Buscar CP, localidad, partido…" oninput="renderOTable()">
       <span class="results-count" id="oCount"></span>
-      <button class="rbtn" onclick="exportExcel('O')" style="margin-left:auto">↓ Exportar Excel</button>
+      <button class="rbtn" onclick="exportExcel()" style="margin-left:auto">↓ Exportar Excel</button>
     </div>
     <div class="tbl-wrap">
       <table id="oTable">
@@ -585,10 +585,8 @@ function buildFilters(){
   const territorios   = [...new Set(Z.cps.map(r=>r.territorio).filter(Boolean))].sort();
   const zonas         = [...new Set(Z.cps.map(r=>r.zona).filter(Boolean))].sort();
 
-  [['gTerr', territoriales], ['oTerritorial', territoriales]].forEach(([id, list]) => {
-    const sel = document.getElementById(id);
-    list.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; sel.appendChild(o); });
-  });
+  const selOT = document.getElementById('oTerritorial');
+  territoriales.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selOT.appendChild(o); });
 
   const selT = document.getElementById('oTerritorio');
   territorios.forEach(v => { const o = document.createElement('option'); o.value = o.textContent = v; selT.appendChild(o); });
@@ -910,79 +908,37 @@ function renderMap(){
 
 
 // ── Export Excel ─────────────────────────────────────────────────────────
-function exportExcel(view){
-  let rows, filename, headers;
+function exportExcel(){
+  const fTerritorial = document.getElementById('oTerritorial').value;
+  const fTerritorio  = document.getElementById('oTerritorio').value;
+  const fZona        = document.getElementById('oZona').value;
+  const fSearch      = document.getElementById('oSearch').value.toLowerCase().trim();
 
-  if(view === 'G'){
-    const terrFilter = document.getElementById('gTerr').value;
-    rows = Z.cps.filter(r => !terrFilter || r.territorial === terrFilter);
-    filename = (terrFilter || 'Todos') + '_detalle.xlsx';
-    headers = ['Territorio','GM','CC','CP','Localidad','Partido','Provincia','Zona',
-               'Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
-    rows = rows.map(r => [
-      r.territorio, r.gm, r.cc, r.cp, r.localidad, r.partido, r.provincia, r.zona,
-      r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
-      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
-      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
-    ]);
-  } else {
-    const fTerritorial = document.getElementById('oTerritorial').value;
-    const fTerritorio  = document.getElementById('oTerritorio').value;
-    const fZona        = document.getElementById('oZona').value;
-    const fSearch      = document.getElementById('oSearch').value.toLowerCase().trim();
-    rows = Z.cps.filter(r => {
-      if(fTerritorial && r.territorial !== fTerritorial) return false;
-      if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
-      if(fZona        && r.zona        !== fZona)         return false;
-      if(fSearch){
-        const hay = [r.cp,r.localidad,r.partido,r.gm,r.sales].join(' ').toLowerCase();
-        if(!hay.includes(fSearch)) return false;
-      }
-      return true;
-    });
-    filename = (fTerritorial || 'Zonificacion') + '_CPs.xlsx';
-    headers = ['Territorial','Territorio','GM','CC','CP','Sales','Localidad','Partido',
-               'Provincia','Zona','Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Productividad'];
-    rows = rows.map(r => [
-      r.territorial, r.territorio, r.gm, r.cc, r.cp, r.sales, r.localidad, r.partido,
-      r.provincia, r.zona, r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
-      r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
-      r.prod > 0 ? +(r.prod*100).toFixed(2) : 0
-    ]);
-  }
+  let rows = Z.cps.filter(r => {
+    if(fTerritorial && r.territorial !== fTerritorial) return false;
+    if(fTerritorio  && r.territorio  !== fTerritorio)  return false;
+    if(fZona        && r.zona        !== fZona)         return false;
+    if(fSearch){
+      const hay = [r.cp,r.localidad,r.partido,r.gm,r.sales].join(' ').toLowerCase();
+      if(!hay.includes(fSearch)) return false;
+    }
+    return true;
+  });
+
+  const filename = (fTerritorial || 'Zonificacion') + '_CPs.xlsx';
+  const headers = ['Territorial','Territorio','GM','CC','CP','Sales','Localidad','Partido',
+                   'Provincia','Zona','Visitas','Esp. Faltantes','Proyectado','RE','RP','Conversión%','Cluster'];
+  const data = rows.map(r => [
+    r.territorial, r.territorio, r.gm, r.cc, r.cp, r.sales, r.localidad, r.partido,
+    r.provincia, r.zona, r.visitas, r.esp_falt, r.proyectado, r.re, r.rp,
+    r.conv > 0 ? +(r.conv*100).toFixed(2) : 0,
+    estadoLabel(r.estado)
+  ]);
 
   const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-
-  // Column widths
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
   ws['!cols'] = headers.map(h => ({wch: Math.max(h.length + 2, 12)}));
-
-  // Header style (bold background)
-  const range = XLSX.utils.decode_range(ws['!ref']);
-  for(let c = range.s.c; c <= range.e.c; c++){
-    const cell = ws[XLSX.utils.encode_cell({r:0, c})];
-    if(cell) cell.s = {font:{bold:true}, fill:{fgColor:{rgb:'1A2232'}}, alignment:{horizontal:'center'}};
-  }
-
   XLSX.utils.book_append_sheet(wb, ws, 'CPs');
-
-  // If gerencial, also add Masters sheet
-  if(view === 'G' && Z.masters?.length){
-    const mHeaders = ['Colaborador','Visitas','FTE BU','FTE Real','Dif FTE','BPP BU','BPP Real'];
-    const mRows = Z.masters.map(m => [
-      m.nombre,
-      typeof m.visitas  === 'number' ? Math.round(m.visitas)    : m.visitas,
-      m.fteBU  ?? '',
-      typeof m.fteReal  === 'number' ? +m.fteReal.toFixed(1)    : '',
-      typeof m.difFTE   === 'number' ? +m.difFTE.toFixed(1)     : '',
-      typeof m.bppBU    === 'number' ? +m.bppBU.toFixed(2)      : '',
-      typeof m.bppReal  === 'number' ? +m.bppReal.toFixed(2)    : ''
-    ]);
-    const wsM = XLSX.utils.aoa_to_sheet([mHeaders, ...mRows]);
-    wsM['!cols'] = mHeaders.map(h => ({wch: Math.max(h.length + 2, 14)}));
-    XLSX.utils.book_append_sheet(wb, wsM, 'Masters');
-  }
-
   XLSX.writeFile(wb, filename);
 }
 
