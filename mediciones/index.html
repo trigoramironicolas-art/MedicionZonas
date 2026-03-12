@@ -5,27 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mediciones de Zonas · Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
-// ── Password ──────────────────────────────────────────────────────────────
-(function(){
-  const PW = 'Planeamiento2026';
-  window.checkPw = function(){
-    const val = document.getElementById('pwInput').value;
-    if(val === PW){
-      document.getElementById('pwScreen').style.display = 'none';
-      sessionStorage.setItem('mz_auth','1');
-    } else {
-      const err = document.getElementById('pwErr');
-      err.textContent = 'Contraseña incorrecta';
-      document.getElementById('pwInput').value = '';
-      setTimeout(()=>{ err.textContent=''; }, 2500);
-    }
-  };
-  if(sessionStorage.getItem('mz_auth') === '1'){
-    document.addEventListener('DOMContentLoaded', ()=>{
-      document.getElementById('pwScreen').style.display = 'none';
-    });
-  }
-})();
+
 
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -309,37 +289,9 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
   .shell{flex-direction:column;}
 }
 
-/* ── Password screen ─────────────────────────────────────── */
-#pwScreen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
-  align-items:center;justify-content:center;z-index:9999;gap:20px;}
-.pw-box{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;
-  padding:40px 48px;text-align:center;max-width:360px;width:90%;}
-.pw-logo{font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:18px;
-  color:var(--t);letter-spacing:-.3px;margin-bottom:6px;}
-.pw-logo span{color:var(--accent);}
-.pw-sub{font-size:11px;color:var(--sub);margin-bottom:24px;}
-.pw-input{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;
-  color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:15px;
-  padding:10px 14px;outline:none;text-align:center;letter-spacing:3px;margin-bottom:12px;}
-.pw-input:focus{border-color:var(--accent);}
-.pw-btn{width:100%;background:var(--accent);color:#fff;border:none;
-  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;
-  padding:10px;border-radius:8px;cursor:pointer;transition:background .15s;}
-.pw-btn:hover{background:var(--accent2);}
-.pw-err{font-size:11px;color:var(--red);height:16px;margin-top:4px;}
 </style>
 </head>
 <body>
-<div id="pwScreen">
-  <div class="pw-box">
-    <div class="pw-logo">Planeamiento <span>Regional</span></div>
-    <div class="pw-sub">Mediciones de Zonas · Acceso restringido</div>
-    <input id="pwInput" class="pw-input" type="password" placeholder="••••••••"
-      onkeydown="if(event.key==='Enter') checkPw()">
-    <button class="pw-btn" onclick="checkPw()">Ingresar</button>
-    <div class="pw-err" id="pwErr"></div>
-  </div>
-</div>
 
 <div id="prog"></div>
 
@@ -1582,4 +1534,3 @@ dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.get
 </script>
 </body>
 </html>
-
