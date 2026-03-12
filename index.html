@@ -181,6 +181,7 @@ header {
   position: relative;
   z-index: 1;
   padding: 0 48px 80px;
+  max-width: 1400px;
 }
 
 .section-label {
@@ -194,7 +195,7 @@ header {
 
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -374,7 +375,7 @@ footer {
   .tools-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media(max-width:600px){
-  .tools-grid { grid-template-columns: 1fr; }
+  .tools-grid { grid-template-columns: 1fr !important; }
 }
 </style>
 </head>
@@ -437,7 +438,6 @@ footer {
         <span class="card-arrow">→</span>
       </div>
     </a>
-    </div>
 
     <!-- Ventas — PRÓXIMAMENTE -->
     <div class="tool-card soon">
