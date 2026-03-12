@@ -194,7 +194,7 @@ header {
 
 .tools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
@@ -371,6 +371,9 @@ footer {
   header, .hero, .tools-section, footer { padding-left: 20px; padding-right: 20px; }
   .divider { margin: 0 20px 40px; }
   .hero { padding-top: 48px; padding-bottom: 40px; }
+  .tools-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media(max-width:600px){
   .tools-grid { grid-template-columns: 1fr; }
 }
 </style>
@@ -486,4 +489,3 @@ footer {
 
 </body>
 </html>
-
