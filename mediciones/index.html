@@ -4,7 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Mediciones de Zonas · Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+// ── Password ──────────────────────────────────────────────────────────────
+(function(){
+  const HASH = '8d78e76b822ee22ad47c4f0b9c5a3e2f3a8d1b0c'; // SHA-1 of password
+  // Password is: Planeamiento2026
+  // To change: compute SHA-1 of new password and replace HASH above
+  async function sha1(str){
+    const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  window.checkPw = async function(){
+    const val = document.getElementById('pwInput').value;
+    const hash = await sha1(val);
+    if(hash === HASH){
+      document.getElementById('pwScreen').style.display = 'none';
+      sessionStorage.setItem('mz_auth','1');
+    } else {
+      const err = document.getElementById('pwErr');
+      err.textContent = 'Contraseña incorrecta';
+      document.getElementById('pwInput').value = '';
+      setTimeout(()=>{ err.textContent=''; }, 2500);
+    }
+  };
+  // Auto-pass if already authenticated in this session
+  if(sessionStorage.getItem('mz_auth') === '1'){
+    document.addEventListener('DOMContentLoaded', ()=>{
+      document.getElementById('pwScreen').style.display = 'none';
+    });
+  }
+})();
+
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -285,9 +316,39 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
   #anlPanel{width:100%;min-width:0;height:auto;position:static;border-left:none;border-top:1px solid var(--bd);}
   .shell{flex-direction:column;}
 }
+
+/* ── Password screen ─────────────────────────────────────── */
+#pwScreen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:9999;gap:20px;}
+.pw-box{background:var(--s1);border:1px solid var(--bd2);border-radius:14px;
+  padding:40px 48px;text-align:center;max-width:360px;width:90%;}
+.pw-logo{font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:18px;
+  color:var(--t);letter-spacing:-.3px;margin-bottom:6px;}
+.pw-logo span{color:var(--accent);}
+.pw-sub{font-size:11px;color:var(--sub);margin-bottom:24px;}
+.pw-input{width:100%;background:var(--s2);border:1px solid var(--bd2);border-radius:8px;
+  color:var(--t);font-family:'IBM Plex Mono',monospace;font-size:15px;
+  padding:10px 14px;outline:none;text-align:center;letter-spacing:3px;margin-bottom:12px;}
+.pw-input:focus{border-color:var(--accent);}
+.pw-btn{width:100%;background:var(--accent);color:#fff;border:none;
+  font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;
+  padding:10px;border-radius:8px;cursor:pointer;transition:background .15s;}
+.pw-btn:hover{background:var(--accent2);}
+.pw-err{font-size:11px;color:var(--red);height:16px;margin-top:4px;}
 </style>
 </head>
 <body>
+<div id="pwScreen">
+  <div class="pw-box">
+    <div class="pw-logo">Planeamiento <span>Regional</span></div>
+    <div class="pw-sub">Mediciones de Zonas · Acceso restringido</div>
+    <input id="pwInput" class="pw-input" type="password" placeholder="••••••••"
+      onkeydown="if(event.key==='Enter') checkPw()">
+    <button class="pw-btn" onclick="checkPw()">Ingresar</button>
+    <div class="pw-err" id="pwErr"></div>
+  </div>
+</div>
+
 <div id="prog"></div>
 
 <!-- ══ UPLOAD SCREEN ══════════════════════════════════════════════════════ -->
@@ -473,7 +534,7 @@ const ZONES=['AMBA','Bahia Blanca','Córdoba','Costa+Tandil','La Plata','Mendoza
              'Paraná','Pinamar','Rosario','San Luis','Santa Fe','Tucuman'];
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio',
               'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const KPI_LABELS={bpp:'BPP (Visitas/FTE)',conv:'% Conversión',vpp:'VPP (Ventas/FTE)',rp_pct:'% Ventas RP'};
+const KPI_LABELS={bpp:'BPP (Vis/FTE)',conv:'% Conversión',vpp:'VPP (Vtas/FTE)',rp_pct:'% Ventas RP',fte:'FTE',vis:'Visitas'};
 const RC=['#2e7fff','#5ba3ff','#7fbcff','#29c99a','#56d8b2','#7ae3c7',
           '#e0a729','#ebbe60','#f5d48e','#e05a5a','#e87a7a','#f0a0a0'];
 
@@ -486,7 +547,7 @@ const fmt={bpp:v=>v==null?'—':v.toFixed(2),conv:v=>v==null?'—':(v*100).toFix
   re:v=>v==null?'—':Math.round(v).toLocaleString('es'),rp:v=>v==null?'—':Math.round(v).toLocaleString('es'),
   fte:v=>v==null?'—':v.toFixed(1)};
 const isPct=k=>['conv','rp_pct'].includes(k);
-const isInt=k=>['vis','vb','re','rp'].includes(k);
+const isInt=k=>['vis','vb','re','rp','fte'].includes(k);
 const fmtAx=(k,v)=>isPct(k)?(v*100).toFixed(0)+'%':isInt(k)?v.toLocaleString('es'):v.toFixed(2);
 const fmtTp=(k,v)=>v==null?null:isPct(k)?(v*100).toFixed(1)+'%':isInt(k)?Math.round(v).toLocaleString('es'):v.toFixed(2);
 
@@ -636,9 +697,30 @@ function renderKPIs(){
         dH=delt(a26,a25,cc.k==='conv'||cc.k==='rp_pct')+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
       } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k),cc.k==='conv'||cc.k==='rp_pct');}
     }
+    // For BPP card: add FTE as context below delta
+    let fteCtx = '';
+    if(cc.k==='bpp'){
+      const fte = getV(y,zn,'fte');
+      let ftePrev = null, fteDH = '';
+      if(y==='2026'){
+        const m26=monZ('2026',zn),m25=monZ('2025',zn);
+        if(ms===0){
+          const f26=aggK(m26,'fte',R.n26), f25=aggK(m25.slice(0,R.n26),'fte',R.n26);
+          ftePrev=f25; fteDH=delt(f26,f25);
+        } else if(ms<=R.n26){
+          ftePrev=getV('2025',zn,'fte'); fteDH=delt(fte,ftePrev);
+        }
+      }
+      fteCtx = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bd);
+        font-size:10px;color:var(--sub);display:flex;align-items:center;gap:6px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;color:var(--dim)">FTE</span>
+        <span style="font-weight:600;color:var(--silver)">${fmt.fte(fte)}</span>
+        ${fteDH}
+      </div>`;
+    }
     return`<div class="kcard ${cc.c}"><div class="klbl">${cc.l}</div>
       <div class="kval">${fmt[cc.k](v)}</div>
-      <div class="kdelta">${dH||'&nbsp;'}</div></div>`;
+      <div class="kdelta">${dH||'&nbsp;'}</div>${fteCtx}</div>`;
   }).join('');
 }
 
@@ -1201,6 +1283,23 @@ function renderDKPICards(zone, lastIdx){
     const badge = dv !== null
       ? `<span class="dbadge ${up?'up':'dn'}">${up?'▲':'▼'}${dvLabel}</span>`
       : '';
+    // FTE context for BPP card
+    let fteCtxD = '';
+    if(key === 'bpp'){
+      const fteHoy = kpHoy['fte'] || 0;
+      const fteWow = kpWow?.['fte'] || 0;
+      const fteDv = fteWow > 0 ? ((fteHoy-fteWow)/fteWow*100).toFixed(1) : null;
+      const fteUp = fteDv !== null && parseFloat(fteDv) >= 0;
+      const fteBadge = fteDv !== null
+        ? `<span class="dbadge ${fteUp?'up':'dn'}">${fteUp?'▲':'▼'}${Math.abs(fteDv)}%</span>`
+        : '';
+      fteCtxD = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bd);
+        font-size:10px;color:var(--sub);display:flex;align-items:center;gap:6px;">
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.5px;color:var(--dim)">FTE</span>
+        <span style="font-weight:600;color:var(--silver)">${Math.round(fteHoy)}</span>
+        ${fteBadge}
+      </div>`;
+    }
     h += `<div class="kcard" style="min-width:0">
       <div class="klbl">${label}</div>
       <div class="kval" style="color:${color};font-size:20px;line-height:1.1">${fmt(hoy)}</div>
@@ -1208,6 +1307,7 @@ function renderDKPICards(zone, lastIdx){
       <div style="font-size:9px;color:var(--dim);margin-top:3px;font-family:'IBM Plex Mono',monospace">
         ${fullDateLabel(fechaHoy)} · ${cmpLabel}: ${fechaWow ? fullDateLabel(fechaWow) : '—'}
       </div>
+      ${fteCtxD}
     </div>`;
   });
   el.innerHTML = h;
