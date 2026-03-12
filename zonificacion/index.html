@@ -526,6 +526,7 @@ function parseFile(wb){
     });
   }
 
+  console.log('MASTERS parsed:', JSON.stringify(masters));
   normalizeCluster(cps);
   return { territoriales, masters, cps };
 }
@@ -634,6 +635,7 @@ function switchTab(t){
 
 // ── Masters Table ────────────────────────────────────────────────────────
 function renderMasters(){
+  console.log('renderMasters called, Z.masters:', Z?.masters?.length, Z?.masters);
   const tbody = document.getElementById('mastersTbody');
   if(!Z.masters || !Z.masters.length){
     tbody.innerHTML = '<tr><td colspan="7" class="nodata">Sin datos de Masters</td></tr>';
