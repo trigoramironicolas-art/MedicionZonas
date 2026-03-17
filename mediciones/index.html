@@ -603,11 +603,13 @@ function totZ(y,z){
   const src=y==='2025'?R.zt25:R.zt26;
   if(z!=='TOTAL')return src[z];
   const a={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
-  const nZ=ZONES.length;
-  ZONES.forEach(zz=>{const d=src[zz];a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=(d.fteBU||0);});
-  // fte and fteBU per zone are already monthly averages — sum across zones is correct for total
-  // bpp = avg visitas per zone / avg fte per zone
-  const visAvgT=+(a.vis/nZ).toFixed(2), fteAvgT=+(a.fte/nZ).toFixed(2), fteBUAvgT=Math.round(a.fteBU/nZ);
+  let nZActive=0;
+  ZONES.forEach(zz=>{const d=src[zz];
+    a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=(d.fteBU||0);
+    if(d.vis>0||d.vb>0) nZActive++;
+  });
+  const nZAvg=Math.max(nZActive,1);
+  const visAvgT=+(a.vis/nZAvg).toFixed(2), fteAvgT=+(a.fte/nZAvg).toFixed(2), fteBUAvgT=Math.round(a.fteBU/nZAvg);
   return{...a,fte:fteAvgT,fteBU:fteBUAvgT,
     bppBU:fteBUAvgT?+(visAvgT/fteBUAvgT).toFixed(4):null,
     bpp:fteAvgT?+(visAvgT/fteAvgT).toFixed(4):null,
@@ -1644,4 +1646,3 @@ dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.get
 </script>
 </body>
 </html>
-
