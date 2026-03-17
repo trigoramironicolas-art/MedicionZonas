@@ -836,13 +836,16 @@ function renderTable(){
       <td>${fmt.vpp(d.vpp)}</td><td>${fmt.rp_pct(d.rp_pct)}</td></tr>`;
   }
   const tt={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
-  const nZ=ZONES.length;
-  ZONES.forEach(z=>{tt.vis+=getV(y,z,'vis')||0;tt.vb+=getV(y,z,'vb')||0;
-    tt.re+=getV(y,z,'re')||0;tt.rp+=getV(y,z,'rp')||0;
-    tt.fte+=getV(y,z,'fte')||0;tt.fteBU+=getV(y,z,'fteBU')||0;});
-  // FTE and FTE BU: already averaged per zone, sum across zones is correct for total
-  // BPP = avg visitas / avg FTE across all zones
-  const ttVisAvg=tt.vis/nZ, ttFteAvg=tt.fte/nZ, ttFteBUAvg=Math.round(tt.fteBU/nZ);
+  let nZActive=0;
+  ZONES.forEach(z=>{
+    const vis=getV(y,z,'vis')||0, vb=getV(y,z,'vb')||0;
+    tt.vis+=vis; tt.vb+=vb;
+    tt.re+=getV(y,z,'re')||0; tt.rp+=getV(y,z,'rp')||0;
+    tt.fte+=getV(y,z,'fte')||0; tt.fteBU+=getV(y,z,'fteBU')||0;
+    if(vis>0||vb>0) nZActive++;
+  });
+  const nZAvg=Math.max(nZActive,1);
+  const ttVisAvg=tt.vis/nZAvg, ttFteAvg=tt.fte/nZAvg, ttFteBUAvg=Math.round(tt.fteBU/nZAvg);
   tt.bpp=ttFteAvg?+(ttVisAvg/ttFteAvg).toFixed(4):null;
   tt.bppBU=ttFteBUAvg?+(ttVisAvg/ttFteBUAvg).toFixed(4):null;
   tt.conv=tt.vis?+(tt.re/tt.vis).toFixed(4):null;
@@ -1641,3 +1644,4 @@ dz.addEventListener('click',e=>{if(e.target.closest('.ubtn'))return;document.get
 </script>
 </body>
 </html>
+
