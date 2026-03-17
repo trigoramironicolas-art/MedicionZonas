@@ -882,91 +882,169 @@ function renderTable(){
   document.getElementById('tZ').innerHTML=h;
 }
 
+// ── Insights Config ───────────────────────────────────────────────────────
+const INSIGHTS_CFG = {
+  // Criticidad por gap vs BU
+  criticidad: [
+    { max: -0.15, label: 'Crítico',   color: '#e05a5a', bg: '#e05a5a14' },
+    { max: -0.05, label: 'Atención',  color: '#e0a729', bg: '#e0a72914' },
+    { max:  0.05, label: 'En línea',  color: '#6e8ca8', bg: '#6e8ca814' },
+    { max:  Infinity, label: 'Sobre objetivo', color: '#29c99a', bg: '#29c99a14' },
+  ],
+  // Qué hacer según cruce de señales
+  acciones: {
+    'vis_baja+conv_baja':   'Revisar cobertura territorial y calidad de la agenda. Doble impacto negativo.',
+    'vis_baja+conv_ok':     'Foco en activación de visitas. La eficiencia de cierre está bien — el problema es el volumen.',
+    'vis_alta+conv_baja':   'Revisar entrenamiento de cierre. Se llega al cliente pero no se convierte — problema de calidad de tráfico.',
+    'vis_alta+conv_alta':   'Zona referente. Capitalizar el modelo y replicar en zonas con bajo rendimiento.',
+    'vis_ok+conv_baja':     'Volumen sostenido pero conversión cayendo. Atención al proceso de venta.',
+    'vis_ok+conv_alta':     'Buen equilibrio. Mantener ritmo y monitorear dotación vs BU.',
+    'fte_exceso+vis_baja':  'El equipo creció pero las visitas no acompañaron. Revisar asignación de cartera y objetivos individuales.',
+    'fte_escaso+vis_alta':  'Alto rendimiento individual. Evaluar si la carga es sostenible o se necesita refuerzo.',
+  }
+};
+
+function getCriticidad(bppVsBU){
+  return INSIGHTS_CFG.criticidad.find(c => bppVsBU <= c.max) || INSIGHTS_CFG.criticidad[0];
+}
+
+function getAccion(d){
+  const { visChange, convDiff, fteChange } = d;
+  const visBaja = visChange < -0.05, visAlta = visChange > 0.05;
+  const convBaja = convDiff < -0.02, convAlta = convDiff > 0.02;
+  const fteExceso = fteChange > 0.08, fteEscaso = fteChange < -0.08;
+
+  if(fteExceso && visBaja) return INSIGHTS_CFG.acciones['fte_exceso+vis_baja'];
+  if(fteEscaso && visAlta) return INSIGHTS_CFG.acciones['fte_escaso+vis_alta'];
+  if(visAlta && convBaja)  return INSIGHTS_CFG.acciones['vis_alta+conv_baja'];
+  if(visAlta && convAlta)  return INSIGHTS_CFG.acciones['vis_alta+conv_alta'];
+  if(visBaja && convBaja)  return INSIGHTS_CFG.acciones['vis_baja+conv_baja'];
+  if(visBaja)              return INSIGHTS_CFG.acciones['vis_baja+conv_ok'];
+  if(convBaja)             return INSIGHTS_CFG.acciones['vis_ok+conv_baja'];
+  return INSIGHTS_CFG.acciones['vis_ok+conv_alta'];
+}
+
+// ── Redacción variada tipo analista ──────────────────────────────────────
+function narrativaBPP(d){
+  const { zona, bppVsPrev, visChange, fteChange, bpp_actual, bpp_anterior } = d;
+  const pct = Math.abs(bppVsPrev*100).toFixed(0);
+  const visPct = Math.abs(visChange*100).toFixed(0);
+  const ftePct = Math.abs(fteChange*100).toFixed(0);
+
+  if(bppVsPrev < -0.05){
+    if(fteChange > 0.05){
+      const opts = [
+        `La dotación creció ${ftePct}% pero las visitas no siguieron el ritmo. Más estructura, misma actividad.`,
+        `Se incorporó personal (+${ftePct}% FTE) sin un correlato en el volumen de visitas. El equipo no está siendo aprovechado al máximo.`,
+        `Expansión de equipo sin expansión de cartera activa. El BPP cayó ${pct}% como consecuencia directa.`,
+      ];
+      return opts[Math.abs(zona.charCodeAt(0))%opts.length];
+    } else {
+      const opts = [
+        `Las visitas cayeron ${visPct}% con un equipo estable. Menor actividad de campo explica la baja del ${pct}% en BPP.`,
+        `Caída de actividad: menos visitas por vendedor, mismo equipo. El BPP refleja un problema de agenda, no de dotación.`,
+        `El equipo estuvo, las visitas no. BPP cayó ${pct}% impulsado exclusivamente por menor volumen de campo.`,
+      ];
+      return opts[Math.abs(zona.charCodeAt(1)||0)%opts.length];
+    }
+  } else if(bppVsPrev > 0.05){
+    if(fteChange < -0.03){
+      const opts = [
+        `Eficiencia forzada: menos equipo (${ftePct}% FTE) pero las visitas se sostuvieron. El BPP sube por concentración de carga.`,
+        `Con menos vendedores, la actividad no cayó proporcionalmente. Señal positiva, aunque hay que monitorear la carga individual.`,
+      ];
+      return opts[Math.abs(zona.charCodeAt(0))%opts.length];
+    } else {
+      const opts = [
+        `Mayor volumen de visitas con dotación estable. El equipo está operando por encima del ritmo del año pasado.`,
+        `Más actividad de campo, mismo equipo. El BPP creció ${pct}% por mejor aprovechamiento de la jornada.`,
+        `Zona en crecimiento: las visitas traccionaron sin necesidad de ampliar la estructura.`,
+      ];
+      return opts[Math.abs(zona.charCodeAt(2)||0)%opts.length];
+    }
+  } else {
+    const opts = [
+      `Desempeño estable vs año anterior. Sin movimientos significativos en visitas ni dotación.`,
+      `Sin variaciones relevantes en actividad. El equipo mantiene el ritmo del año pasado.`,
+      `Zona en línea con el comportamiento histórico. No hay alertas en productividad.`,
+    ];
+    return opts[Math.abs(zona.charCodeAt(0))%opts.length];
+  }
+}
+
+function narrativaConv(d){
+  const { convDiff, visChange } = d;
+  if(Math.abs(convDiff) < 0.02) return '';
+  const pp = Math.abs(convDiff*100).toFixed(1);
+  if(convDiff < -0.02 && visChange > 0.05)
+    return ` Se suman más visitas pero la tasa de cierre bajó ${pp}pp — señal de alerta en calidad del tráfico o proceso de venta.`;
+  if(convDiff < -0.02)
+    return ` La conversión cedió ${pp}pp. Con el volumen actual, cada punto recuperado tiene impacto directo en resultado.`;
+  if(convDiff > 0.02 && visChange < -0.05)
+    return ` A pesar de menos visitas, la conversión subió ${pp}pp. El equipo está siendo más selectivo y efectivo.`;
+  if(convDiff > 0.02)
+    return ` Conversión en alza (+${pp}pp): el equipo está cerrando mejor. Buen momento para sostener el volumen.`;
+  return '';
+}
+
+// ── Alerta global sistémica ───────────────────────────────────────────────
+function detectarAlertaGlobal(insights){
+  const n = insights.length;
+  if(n < 2) return null;
+  const visBaja   = insights.filter(i=>i.visChange < -0.05).length;
+  const convBaja  = insights.filter(i=>i.convDiff < -0.02).length;
+  const bajoBU    = insights.filter(i=>i.bppVsBU < -0.05).length;
+  const pVisBaja  = visBaja/n, pConvBaja = convBaja/n, pBajoBU = bajoBU/n;
+
+  if(pBajoBU >= 0.7)
+    return { tipo:'crítica', msg:`${bajoBU} de ${n} zonas están por debajo del objetivo BPP BU. Problema sistémico de actividad que requiere revisión inmediata.` };
+  if(pVisBaja >= 0.7)
+    return { tipo:'visitas', msg:`El ${Math.round(pVisBaja*100)}% de las zonas muestra caída en visitas vs año anterior. La baja no es puntual — revisar factores estructurales de agenda y cobertura.` };
+  if(pConvBaja >= 0.7)
+    return { tipo:'conversion', msg:`Caída generalizada en conversión (${Math.round(pConvBaja*100)}% de zonas). Evaluar proceso de venta, calidad del prospecto o cambios en el contexto de mercado.` };
+  return null;
+}
 
 // ── Insights: Qué pasó ───────────────────────────────────────────────────
 function buildInsightData(){
-  // Only works for 2026, needs previous period for comparison
-  const y='2026';
-  const nM=R.n26;
+  const y='2026', nM=R.n26;
   return ZONES.map(z=>{
-    const cur = totZ(y,z);
-    // Previous period: same months last year
-    const prev = totZ('2025',z);
-    // Monthly data for current and previous
+    const cur   = totZ(y,z);
     const mCur  = monZ(y,z);
     const mPrev = monZ('2025',z);
-    // Use aggK for proper weighted averages
-    const bpp_actual   = aggK(mCur,'bpp',nM);
-    const bpp_anterior = aggK(mPrev.slice(0,nM),'bpp',nM);
-    const conv_actual  = aggK(mCur,'conv',nM);
-    const conv_anterior= aggK(mPrev.slice(0,nM),'conv',nM);
-    const vis_actual   = cur.vis;
-    const vis_anterior = mPrev.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0);
-    const fte_actual   = aggK(mCur,'fte',nM);
-    const fte_anterior = aggK(mPrev.slice(0,nM),'fte',nM);
-    const bpp_BU       = aggK(mCur,'bppBU',nM);
-    const fte_BU       = aggK(mCur,'fteBU',nM);
-    return { zona:z, bpp_actual, bpp_anterior, bpp_BU,
+    const bpp_actual    = aggK(mCur,'bpp',nM);
+    const bpp_anterior  = aggK(mPrev.slice(0,nM),'bpp',nM);
+    const conv_actual   = aggK(mCur,'conv',nM);
+    const conv_anterior = aggK(mPrev.slice(0,nM),'conv',nM);
+    const vis_actual    = cur.vis;
+    const vis_anterior  = mPrev.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0);
+    const fte_actual    = aggK(mCur,'fte',nM);
+    const fte_anterior  = aggK(mPrev.slice(0,nM),'fte',nM);
+    const bpp_BU        = aggK(mCur,'bppBU',nM);
+    const fte_BU        = aggK(mCur,'fteBU',nM);
+    const visChange     = vis_anterior>0 ? (vis_actual-vis_anterior)/vis_anterior : 0;
+    const fteChange     = fte_anterior>0 ? (fte_actual-fte_anterior)/fte_anterior : 0;
+    const convDiff      = (conv_actual||0)-(conv_anterior||0);
+    const bppVsPrev     = bpp_anterior>0 ? (bpp_actual-bpp_anterior)/bpp_anterior : 0;
+    const bppVsBU       = bpp_BU>0 ? (bpp_actual-bpp_BU)/bpp_BU : 0;
+    return { zona:z, bpp_actual, bpp_anterior, bpp_BU, fte_BU,
              conv_actual, conv_anterior, vis_actual, vis_anterior,
-             fte_actual, fte_anterior, fte_BU };
-  }).filter(d=>d.vis_actual>0); // only zones with data
+             fte_actual, fte_anterior, visChange, fteChange, convDiff,
+             bppVsPrev, bppVsBU };
+  }).filter(d=>d.vis_actual>0);
 }
 
 function generateInsights(data){
   return data.map(d=>{
-    const {zona,bpp_actual,bpp_anterior,bpp_BU,conv_actual,conv_anterior,
-           vis_actual,vis_anterior,fte_actual,fte_anterior,fte_BU} = d;
-
-    // ── BPP analysis ──
-    const bppVsPrev = bpp_anterior>0 ? (bpp_actual-bpp_anterior)/bpp_anterior : 0;
-    const bppVsBU   = bpp_BU>0       ? (bpp_actual-bpp_BU)/bpp_BU             : 0;
-    const visChange = vis_anterior>0  ? (vis_actual-vis_anterior)/vis_anterior  : 0;
-    const fteChange = fte_anterior>0  ? (fte_actual-fte_anterior)/fte_anterior  : 0;
-    const convDiff  = (conv_actual||0) - (conv_anterior||0); // in ratio units
-
-    // ── que_paso ──
-    let que_paso = '';
-    if(bppVsPrev < -0.05){
-      if(fteChange > 0.03)
-        que_paso = `BPP cayó ${Math.abs(bppVsPrev*100).toFixed(0)}% vs año anterior por aumento de dotación (+${(fteChange*100).toFixed(0)}% FTE). Las visitas no acompañaron el crecimiento del equipo.`;
-      else
-        que_paso = `BPP cayó ${Math.abs(bppVsPrev*100).toFixed(0)}% vs año anterior por menor volumen de visitas (${visChange>=0?'+':''}${(visChange*100).toFixed(0)}%). El equipo se mantuvo estable.`;
-    } else if(bppVsPrev > 0.05){
-      if(fteChange < -0.03)
-        que_paso = `BPP subió ${(bppVsPrev*100).toFixed(0)}% vs año anterior. El equipo se redujo (${(fteChange*100).toFixed(0)}% FTE) pero las visitas se sostuvieron — mayor eficiencia individual.`;
-      else
-        que_paso = `BPP subió ${(bppVsPrev*100).toFixed(0)}% vs año anterior por mayor volumen de visitas (+${(visChange*100).toFixed(0)}%) con dotación estable.`;
-    } else {
-      que_paso = `BPP estable vs año anterior (${bppVsPrev>=0?'+':''}${(bppVsPrev*100).toFixed(1)}%). Sin cambios significativos en visitas ni dotación.`;
-    }
-
-    // Add conversion note
-    if(convDiff < -0.02)
-      que_paso += ` Conversión bajó ${Math.abs(convDiff*100).toFixed(1)}pp${visChange>0?' con más visitas — posible problema de calidad de tráfico':''}.`;
-    else if(convDiff > 0.02)
-      que_paso += ` Conversión subió ${(convDiff*100).toFixed(1)}pp${visChange<0?' con menos visitas — alta eficiencia en tráfico reducido':''}.`;
-
-    // ── donde_estamos ──
-    const bppBULabel = bpp_BU ? `BPP BU: ${bpp_BU.toFixed(2)}` : 'sin objetivo BU';
-    const vsObj = bppVsBU >= 0
-      ? `${(bppVsBU*100).toFixed(1)}% por encima del objetivo (${bppBULabel})`
-      : `${Math.abs(bppVsBU*100).toFixed(1)}% por debajo del objetivo (${bppBULabel})`;
-    const donde_estamos = `BPP actual: ${bpp_actual?bpp_actual.toFixed(2):'—'} — ${vsObj}. Conversión: ${conv_actual?(conv_actual*100).toFixed(1)+'%':'—'}.`;
-
-    // ── que_hacer ──
-    let que_hacer = '';
-    if(bppVsBU < -0.1)
-      que_hacer = `Revisar agenda de visitas. El equipo tiene capacidad instalada (FTE BU: ${fte_BU?Math.round(fte_BU):'—'}) pero las visitas no llegan al nivel proyectado.`;
-    else if(bppVsBU >= -0.1 && bppVsBU < 0)
-      que_hacer = `Zona cerca del objetivo. Mantener ritmo y monitorear conversión para no perder eficiencia.`;
-    else
-      que_hacer = `Zona por encima del objetivo de visitas. Foco en conversión (${conv_actual?(conv_actual*100).toFixed(1)+'%':'—'}) para capitalizar el volumen.`;
-
-    // Priority score: negative gap vs BU is worst
-    const priority = -(bppVsBU);
-
-    return { zona, que_paso, donde_estamos, que_hacer, priority,
-             bppVsBU, bppVsPrev, convDiff };
+    const que_paso       = narrativaBPP(d) + narrativaConv(d);
+    const crit           = getCriticidad(d.bppVsBU);
+    const bppBUlbl       = d.bpp_BU ? d.bpp_BU.toFixed(2) : 'sin objetivo';
+    const vsObj          = d.bppVsBU >= 0
+      ? `${(d.bppVsBU*100).toFixed(1)}% sobre objetivo (BPP BU: ${bppBUlbl})`
+      : `${Math.abs(d.bppVsBU*100).toFixed(1)}% bajo objetivo (BPP BU: ${bppBUlbl})`;
+    const donde_estamos  = `BPP: ${d.bpp_actual?d.bpp_actual.toFixed(2):'—'} — ${vsObj}. Conversión: ${d.conv_actual?(d.conv_actual*100).toFixed(1)+'%':'—'}.`;
+    const que_hacer      = getAccion(d);
+    return { ...d, que_paso, donde_estamos, que_hacer, criticidad: crit, priority: -d.bppVsBU };
   }).sort((a,b)=>b.priority-a.priority);
 }
 
@@ -982,35 +1060,62 @@ function renderInsights(){
   }
   const insights = generateInsights(raw);
   document.getElementById('insightsWrap').style.display='block';
-  document.getElementById('insightsGrid').innerHTML = insights.map(ins=>{
-    const isBelow = ins.bppVsBU < 0;
-    const accent  = isBelow ? 'var(--red)' : 'var(--green)';
-    const badge   = isBelow
-      ? `<span style="background:var(--red)18;color:var(--red);border:1px solid var(--red)30;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600">↓ BAJO OBJETIVO</span>`
-      : `<span style="background:var(--green)18;color:var(--green);border:1px solid var(--green)30;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600">↑ SOBRE OBJETIVO</span>`;
-    const convBadge = ins.convDiff < -0.02
-      ? `<span style="color:var(--red);font-size:9px">▼ Conv ${(ins.convDiff*100).toFixed(1)}pp</span>`
-      : ins.convDiff > 0.02
-      ? `<span style="color:var(--green);font-size:9px">▲ Conv +${(ins.convDiff*100).toFixed(1)}pp</span>`
-      : '';
 
-    return `<div style="background:var(--s1);border:1px solid ${accent}40;border-left:3px solid ${accent};
-      border-radius:10px;padding:16px 18px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <span style="font-size:12px;font-weight:700;color:var(--t)">${ins.zona}</span>
-        <div style="display:flex;gap:6px;align-items:center">${convBadge}${badge}</div>
+  // Alerta global
+  const alerta = detectarAlertaGlobal(insights);
+  const alertaHTML = alerta ? `
+    <div style="background:${alerta.tipo==='crítica'?'#e05a5a18':'#e0a72918'};
+      border:1px solid ${alerta.tipo==='crítica'?'#e05a5a':'#e0a729'};
+      border-radius:8px;padding:12px 16px;margin-bottom:16px;display:flex;align-items:flex-start;gap:10px">
+      <span style="font-size:16px">${alerta.tipo==='crítica'?'🚨':'⚠️'}</span>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:${alerta.tipo==='crítica'?'var(--red)':'var(--amber)'};
+          letter-spacing:.5px;margin-bottom:3px">ALERTA SISTÉMICA</div>
+        <div style="font-size:11px;color:var(--sub);line-height:1.5">${alerta.msg}</div>
       </div>
-      <div style="margin-bottom:8px">
-        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">QUÉ PASÓ</div>
-        <div style="font-size:11px;color:var(--sub);line-height:1.5">${ins.que_paso}</div>
+    </div>` : '';
+
+  document.getElementById('insightsGrid').innerHTML = alertaHTML + insights.map(ins=>{
+    const { criticidad: crit } = ins;
+    const convBadge = ins.convDiff < -0.02
+      ? `<span style="background:#e05a5a18;color:var(--red);border:1px solid #e05a5a30;padding:1px 7px;border-radius:3px;font-size:9px">▼ Conv ${(ins.convDiff*100).toFixed(1)}pp</span>`
+      : ins.convDiff > 0.02
+      ? `<span style="background:#29c99a18;color:var(--green);border:1px solid #29c99a30;padding:1px 7px;border-radius:3px;font-size:9px">▲ Conv +${(ins.convDiff*100).toFixed(1)}pp</span>`
+      : '';
+    const critBadge = `<span style="background:${crit.bg};color:${crit.color};border:1px solid ${crit.color}40;
+      padding:1px 8px;border-radius:3px;font-size:9px;font-weight:600">${crit.label}</span>`;
+    const bppBar = ins.bpp_BU > 0 ? (()=>{
+      const pct = Math.min(Math.abs(ins.bppVsBU)*100, 30);
+      const col = ins.bppVsBU >= 0 ? 'var(--green)' : 'var(--red)';
+      const dir = ins.bppVsBU >= 0 ? 'right' : 'left';
+      return `<div style="display:flex;align-items:center;gap:6px;margin-top:6px;font-size:9px;color:var(--dim)">
+        <span>BU</span>
+        <div style="flex:1;height:3px;background:var(--bd);border-radius:2px;position:relative">
+          <div style="position:absolute;${dir}:50%;top:0;height:100%;width:${pct/2}%;background:${col};border-radius:2px"></div>
+          <div style="position:absolute;left:50%;top:-3px;width:1px;height:9px;background:var(--bd2)"></div>
+        </div>
+        <span style="color:${col};font-weight:600">${ins.bppVsBU>=0?'+':''}${(ins.bppVsBU*100).toFixed(1)}%</span>
+      </div>`;
+    })() : '';
+
+    return `<div style="background:var(--s1);border:1px solid ${crit.color}35;
+      border-left:3px solid ${crit.color};border-radius:10px;padding:16px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:700;color:var(--t)">${ins.zona}</span>
+        <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-end">${convBadge}${critBadge}</div>
+      </div>
+      ${bppBar}
+      <div style="margin-top:12px;margin-bottom:8px">
+        <div style="font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.8px;margin-bottom:4px">QUÉ PASÓ</div>
+        <div style="font-size:11px;color:var(--sub);line-height:1.6">${ins.que_paso}</div>
       </div>
       <div style="margin-bottom:8px;padding-top:8px;border-top:1px solid var(--bd)">
-        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">DÓNDE ESTAMOS</div>
-        <div style="font-size:11px;color:var(--sub);line-height:1.5">${ins.donde_estamos}</div>
+        <div style="font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.8px;margin-bottom:4px">DÓNDE ESTAMOS</div>
+        <div style="font-size:11px;color:var(--sub);line-height:1.6">${ins.donde_estamos}</div>
       </div>
       <div style="padding-top:8px;border-top:1px solid var(--bd)">
-        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">QUÉ HACER</div>
-        <div style="font-size:11px;color:var(--t);line-height:1.5;font-weight:500">${ins.que_hacer}</div>
+        <div style="font-size:8px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.8px;margin-bottom:4px">QUÉ HACER</div>
+        <div style="font-size:11px;color:var(--t);line-height:1.6;font-weight:500">${ins.que_hacer}</div>
       </div>
     </div>`;
   }).join('');
