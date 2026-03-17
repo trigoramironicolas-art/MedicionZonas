@@ -927,46 +927,57 @@ function getAccion(d){
 // ── Redacción variada tipo analista ──────────────────────────────────────
 function narrativaBPP(d){
   const { zona, bppVsPrev, visChange, fteChange, bpp_actual, bpp_anterior } = d;
-  const pct = Math.abs(bppVsPrev*100).toFixed(0);
-  const visPct = Math.abs(visChange*100).toFixed(0);
-  const ftePct = Math.abs(fteChange*100).toFixed(0);
+  const pct     = Math.abs(bppVsPrev*100).toFixed(0);
+  const visPct  = Math.abs(visChange*100).toFixed(0);
+  const ftePct  = Math.abs(fteChange*100).toFixed(0);
+  const bppPrev = bpp_anterior ? bpp_anterior.toFixed(2) : '—';
+  const bppAct  = bpp_actual   ? bpp_actual.toFixed(2)   : '—';
+  // Umbrales más exigentes para no gatillar por variaciones menores
+  const fteSubio  = fteChange >  0.10; // +10% real para hablar de "expansión"
+  const fteBajo   = fteChange < -0.10;
+  const visSubio  = visChange >  0.05;
+  const visBajo   = visChange < -0.05;
 
   if(bppVsPrev < -0.05){
-    if(fteChange > 0.05){
+    if(fteSubio && visBajo){
       const opts = [
-        `La dotación creció ${ftePct}% pero las visitas no siguieron el ritmo. Más estructura, misma actividad.`,
-        `Se incorporó personal (+${ftePct}% FTE) sin un correlato en el volumen de visitas. El equipo no está siendo aprovechado al máximo.`,
-        `Expansión de equipo sin expansión de cartera activa. El BPP cayó ${pct}% como consecuencia directa.`,
+        `El equipo creció ${ftePct}% vs el mismo período de 2025, pero las visitas cayeron ${visPct}%. BPP pasó de ${bppPrev} a ${bppAct}: más estructura, menos actividad de campo.`,
+        `Dotación en expansión (+${ftePct}% vs 2025) sin respaldo en visitas (-${visPct}%). El BPP cayó ${pct}% porque el crecimiento del equipo no se tradujo en mayor cobertura.`,
+      ];
+      return opts[Math.abs(zona.charCodeAt(0))%opts.length];
+    } else if(fteSubio){
+      const opts = [
+        `El equipo creció ${ftePct}% vs 2025 pero las visitas no acompañaron. BPP cayó ${pct}% (de ${bppPrev} a ${bppAct}): más vendedores, mismo volumen de actividad.`,
+        `Incorporación de personal (+${ftePct}% FTE vs 2025) sin impacto visible en la agenda. El BPP refleja que el equipo nuevo todavía no está operando a ritmo completo.`,
       ];
       return opts[Math.abs(zona.charCodeAt(0))%opts.length];
     } else {
       const opts = [
-        `Las visitas cayeron ${visPct}% con un equipo estable. Menor actividad de campo explica la baja del ${pct}% en BPP.`,
-        `Caída de actividad: menos visitas por vendedor, mismo equipo. El BPP refleja un problema de agenda, no de dotación.`,
-        `El equipo estuvo, las visitas no. BPP cayó ${pct}% impulsado exclusivamente por menor volumen de campo.`,
+        `Las visitas cayeron ${visPct}% vs el mismo período de 2025 con dotación estable. BPP pasó de ${bppPrev} a ${bppAct}: el problema es de agenda, no de equipo.`,
+        `Menor actividad de campo vs 2025 (-${visPct}% en visitas). El BPP bajó ${pct}% sin cambios en la dotación — señal de que la cobertura territorial se redujo.`,
+        `El equipo estuvo. Las visitas no. BPP cayó de ${bppPrev} a ${bppAct} por menor volumen de campo vs 2025, con estructura sin cambios.`,
       ];
       return opts[Math.abs(zona.charCodeAt(1)||0)%opts.length];
     }
   } else if(bppVsPrev > 0.05){
-    if(fteChange < -0.03){
+    if(fteBajo){
       const opts = [
-        `Eficiencia forzada: menos equipo (${ftePct}% FTE) pero las visitas se sostuvieron. El BPP sube por concentración de carga.`,
-        `Con menos vendedores, la actividad no cayó proporcionalmente. Señal positiva, aunque hay que monitorear la carga individual.`,
+        `Menos vendedores que en 2025 (-${ftePct}% FTE) pero las visitas se sostuvieron. BPP subió de ${bppPrev} a ${bppAct}: mayor carga individual, mejor aprovechamiento.`,
+        `El equipo se redujo ${ftePct}% vs 2025 sin caída proporcional en visitas. Señal de eficiencia, aunque hay que monitorear la carga por vendedor.`,
       ];
       return opts[Math.abs(zona.charCodeAt(0))%opts.length];
     } else {
       const opts = [
-        `Mayor volumen de visitas con dotación estable. El equipo está operando por encima del ritmo del año pasado.`,
-        `Más actividad de campo, mismo equipo. El BPP creció ${pct}% por mejor aprovechamiento de la jornada.`,
-        `Zona en crecimiento: las visitas traccionaron sin necesidad de ampliar la estructura.`,
+        `Más visitas que en el mismo período de 2025 (+${visPct}%) con dotación estable. BPP subió de ${bppPrev} a ${bppAct}: el equipo está operando a mejor ritmo.`,
+        `Mayor actividad de campo vs 2025 (+${visPct}% en visitas), mismo equipo. BPP creció ${pct}%: más cobertura sin ampliar estructura.`,
+        `Zona en alza vs 2025: las visitas crecieron ${visPct}% con la misma dotación. BPP pasó de ${bppPrev} a ${bppAct}.`,
       ];
       return opts[Math.abs(zona.charCodeAt(2)||0)%opts.length];
     }
   } else {
     const opts = [
-      `Desempeño estable vs año anterior. Sin movimientos significativos en visitas ni dotación.`,
-      `Sin variaciones relevantes en actividad. El equipo mantiene el ritmo del año pasado.`,
-      `Zona en línea con el comportamiento histórico. No hay alertas en productividad.`,
+      `Desempeño estable vs el mismo período de 2025. Sin movimientos significativos en visitas ni dotación (BPP: ${bppPrev} → ${bppAct}).`,
+      `La zona mantiene el ritmo de 2025. Sin alertas en productividad ni cambios relevantes en estructura.`,
     ];
     return opts[Math.abs(zona.charCodeAt(0))%opts.length];
   }
