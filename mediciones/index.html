@@ -624,7 +624,9 @@ function totZ(y,z){
   const totalVisByFte = activeZones.reduce((s,d)=>s+d.vis,0);
   const totalFte = activeZones.reduce((s,d)=>s+d.fte,0);
   const totalFteBU = activeZones.reduce((s,d)=>s+(d.fteBU||0),0);
-  const fteAvgT=+(totalFte/nZAvg).toFixed(2), fteBUAvgT=Math.round(totalFteBU/nZAvg);
+  const fteAvgT=+(totalFte/nZAvg).toFixed(2);
+  // FTE BU: sum across zones (each zone already holds a monthly average)
+  const fteBUAvgT=Math.round(totalFteBU);
   // visAvg per zone then divide by fte avg per zone = weighted BPP
   const bppTotal = totalFte>0 ? +((totalVisByFte/nZAvg)/(totalFte/nZAvg)).toFixed(4) : null;
   const bppBUTotal = totalFteBU>0 ? +((totalVisByFte/nZAvg)/(totalFteBU/nZAvg)).toFixed(4) : null;
@@ -866,8 +868,8 @@ function renderTable(){
   });
   const nZAvg=Math.max(nZActive,1);
   const ttVisAvg=tt.vis/nZAvg, ttFteAvg=tt.fte/nZAvg;
-  // FTE BU: for acumulado average across active zones; for single month just sum
-  const ttFteBUAvg = ms===0 ? Math.round(tt.fteBU/nZAvg) : Math.round(tt.fteBU);
+  // FTE BU: always sum across zones (each zone's value is already a monthly average)
+  const ttFteBUAvg = Math.round(tt.fteBU);
   tt.bpp=ttFteAvg?+(ttVisAvg/ttFteAvg).toFixed(4):null;
   tt.bppBU=ttFteBUAvg?+(ttVisAvg/ttFteBUAvg).toFixed(4):null;
   tt.conv=tt.vis?+(tt.re/tt.vis).toFixed(4):null;
