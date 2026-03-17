@@ -419,6 +419,15 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
           <div class="sec">Detalle por Zona · <span id="tT"></span></div>
           <div style="overflow-x:auto"><table id="tZ"></table></div>
         </div>
+        <!-- INSIGHTS -->
+        <div id="insightsWrap" style="display:none">
+          <div class="sec-title" style="margin:28px 0 14px;display:flex;align-items:center;gap:10px">
+            QUÉ PASÓ
+            <span style="font-size:9px;color:var(--dim);font-weight:400;letter-spacing:.5px">ANÁLISIS AUTOMÁTICO POR ZONA</span>
+          </div>
+          <div id="insightsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-bottom:32px"></div>
+        </div>
+
         </div><!-- end viewMonthly -->
 
         <!-- Daily view -->
@@ -433,15 +442,6 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
         </div>
 
       </main>
-    </div>
-
-    <!-- INSIGHTS -->
-    <div id="insightsWrap" style="display:none;padding:0 28px">
-      <div class="sec-title" style="margin:28px 0 14px;display:flex;align-items:center;gap:10px">
-        QUÉ PASÓ
-        <span style="font-size:9px;color:var(--dim);font-weight:400;letter-spacing:.5px">ANÁLISIS AUTOMÁTICO POR ZONA</span>
-      </div>
-      <div id="insightsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-bottom:32px"></div>
     </div>
 
     <!-- ANALYSIS PANEL -->
