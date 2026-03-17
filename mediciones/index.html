@@ -865,7 +865,9 @@ function renderTable(){
     if(vis>0||vb>0) nZActive++;
   });
   const nZAvg=Math.max(nZActive,1);
-  const ttVisAvg=tt.vis/nZAvg, ttFteAvg=tt.fte/nZAvg, ttFteBUAvg=Math.round(tt.fteBU/nZAvg);
+  const ttVisAvg=tt.vis/nZAvg, ttFteAvg=tt.fte/nZAvg;
+  // FTE BU: for acumulado average across active zones; for single month just sum
+  const ttFteBUAvg = ms===0 ? Math.round(tt.fteBU/nZAvg) : Math.round(tt.fteBU);
   tt.bpp=ttFteAvg?+(ttVisAvg/ttFteAvg).toFixed(4):null;
   tt.bppBU=ttFteBUAvg?+(ttVisAvg/ttFteBUAvg).toFixed(4):null;
   tt.conv=tt.vis?+(tt.re/tt.vis).toFixed(4):null;
@@ -1018,26 +1020,40 @@ function detectarAlertaGlobal(insights){
 
 // ── Insights: Qué pasó ───────────────────────────────────────────────────
 function buildInsightData(){
-  const y='2026', nM=R.n26;
-  return ZONES.map(z=>{
-    const cur   = totZ(y,z);
+  const y='2026';
+  // Respect current filters: ms (month) and zn (zone)
+  const nM = ms===0 ? R.n26 : ms; // acumulado or specific month
+  const zonesTarget = (zn==='TOTAL') ? ZONES : ZONES.filter(z=>z===zn);
+
+  return zonesTarget.map(z=>{
     const mCur  = monZ(y,z);
     const mPrev = monZ('2025',z);
-    const bpp_actual    = aggK(mCur,'bpp',nM);
-    const bpp_anterior  = aggK(mPrev.slice(0,nM),'bpp',nM);
-    const conv_actual   = aggK(mCur,'conv',nM);
-    const conv_anterior = aggK(mPrev.slice(0,nM),'conv',nM);
-    const vis_actual    = cur.vis;
-    const vis_anterior  = mPrev.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0);
-    const fte_actual    = aggK(mCur,'fte',nM);
-    const fte_anterior  = aggK(mPrev.slice(0,nM),'fte',nM);
-    const bpp_BU        = aggK(mCur,'bppBU',nM);
-    const fte_BU        = aggK(mCur,'fteBU',nM);
-    const visChange     = vis_anterior>0 ? (vis_actual-vis_anterior)/vis_anterior : 0;
-    const fteChange     = fte_anterior>0 ? (fte_actual-fte_anterior)/fte_anterior : 0;
-    const convDiff      = (conv_actual||0)-(conv_anterior||0);
-    const bppVsPrev     = bpp_anterior>0 ? (bpp_actual-bpp_anterior)/bpp_anterior : 0;
-    const bppVsBU       = bpp_BU>0 ? (bpp_actual-bpp_BU)/bpp_BU : 0;
+
+    // For specific month: use that month's data; for acumulado: use aggK over nM months
+    const getKPI = (monthly, k, n) => ms===0 ? aggK(monthly, k, n) : (monthly[ms-1]?.[k] ?? null);
+
+    const bpp_actual    = getKPI(mCur,  'bpp',  nM);
+    const bpp_anterior  = getKPI(mPrev, 'bpp',  nM);
+    const conv_actual   = getKPI(mCur,  'conv', nM);
+    const conv_anterior = getKPI(mPrev, 'conv', nM);
+    const bpp_BU        = getKPI(mCur,  'bppBU',nM);
+    const fte_BU        = getKPI(mCur,  'fteBU',nM);
+    const fte_actual    = getKPI(mCur,  'fte',  nM);
+    const fte_anterior  = getKPI(mPrev, 'fte',  nM);
+
+    const vis_actual   = ms===0
+      ? mCur.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0)
+      : (mCur[ms-1]?.vis||0);
+    const vis_anterior = ms===0
+      ? mPrev.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0)
+      : (mPrev[ms-1]?.vis||0);
+
+    const visChange  = vis_anterior>0  ? (vis_actual-vis_anterior)/vis_anterior   : 0;
+    const fteChange  = fte_anterior>0  ? (fte_actual-fte_anterior)/fte_anterior   : 0;
+    const convDiff   = (conv_actual||0)-(conv_anterior||0);
+    const bppVsPrev  = bpp_anterior>0  ? (bpp_actual-bpp_anterior)/bpp_anterior   : 0;
+    const bppVsBU    = bpp_BU>0        ? (bpp_actual-bpp_BU)/bpp_BU               : 0;
+
     return { zona:z, bpp_actual, bpp_anterior, bpp_BU, fte_BU,
              conv_actual, conv_anterior, vis_actual, vis_anterior,
              fte_actual, fte_anterior, visChange, fteChange, convDiff,
