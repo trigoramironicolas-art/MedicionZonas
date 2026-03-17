@@ -866,12 +866,10 @@ function renderTable(){
     tt.fte+=getV(y,z,'fte')||0; tt.fteBU+=getV(y,z,'fteBU')||0;
     if(vis>0||vb>0) nZActive++;
   });
-  const nZAvg=Math.max(nZActive,1);
-  const ttVisAvg=tt.vis/nZAvg, ttFteAvg=tt.fte/nZAvg;
-  // FTE BU: always sum across zones (each zone's value is already a monthly average)
   const ttFteBUAvg = Math.round(tt.fteBU);
-  tt.bpp=ttFteAvg?+(ttVisAvg/ttFteAvg).toFixed(4):null;
-  tt.bppBU=ttFteBUAvg?+(ttVisAvg/ttFteBUAvg).toFixed(4):null;
+  // BPP = total visitas / total FTE (both already averaged per month per zone, summed across zones)
+  tt.bpp   = tt.fte  ? +(tt.vis/tt.fte).toFixed(4)        : null;
+  tt.bppBU = ttFteBUAvg ? +(tt.vis/ttFteBUAvg).toFixed(4) : null;
   tt.conv=tt.vis?+(tt.re/tt.vis).toFixed(4):null;
   tt.vpp=tt.vis?+(tt.vb/tt.vis).toFixed(4):null;tt.rp_pct=tt.vb?+(tt.rp/tt.vb).toFixed(4):null;
   const ttDeltaBU=(tt.bpp!=null&&tt.bppBU!=null&&tt.bppBU!==0)?
