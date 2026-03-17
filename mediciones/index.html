@@ -514,7 +514,7 @@ const fmt={bpp:v=>v==null?'—':v.toFixed(2),conv:v=>v==null?'—':(v*100).toFix
   fteBU:v=>v==null?'—':Math.round(v).toLocaleString('es'),
   bppBU:v=>v==null?'—':v.toFixed(2)};
 const isPct=k=>['conv','rp_pct'].includes(k);
-const isInt=k=>['vis','vb','re','rp','fte'].includes(k);
+const isInt=k=>['vis','vb','re','rp','fte','fteBU'].includes(k);
 const fmtAx=(k,v)=>isPct(k)?(v*100).toFixed(0)+'%':isInt(k)?v.toLocaleString('es'):v.toFixed(2);
 const fmtTp=(k,v)=>v==null?null:isPct(k)?(v*100).toFixed(1)+'%':isInt(k)?Math.round(v).toLocaleString('es'):v.toFixed(2);
 
@@ -577,9 +577,13 @@ function parseExcel(wb){
   }
   function sumM(zm,n){
     const a={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
+    const active=zm.slice(0,n).filter(d=>d.vis>0||d.vb>0);
+    const nActive=Math.max(active.length,1);
     zm.slice(0,n).forEach(d=>{a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=d.fteBU||0;});
-    return{...a,fte:+a.fte.toFixed(2),fteBU:Math.round(a.fteBU),
-      bppBU:a.fteBU?+(a.vis/a.fteBU).toFixed(4):null,bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
+    const fteAvg=+(a.fte/nActive).toFixed(2);
+    const fteBUAvg=Math.round(a.fteBU/nActive);
+    return{...a,fte:fteAvg,fteBU:fteBUAvg,
+      bppBU:fteBUAvg?+(a.vis/fteBUAvg).toFixed(4):null,bpp:fteAvg?+(a.vis/fteAvg).toFixed(4):null,
       conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
       rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
   }
@@ -597,9 +601,11 @@ function parseExcel(wb){
 function totZ(y,z){
   const src=y==='2025'?R.zt25:R.zt26;
   if(z!=='TOTAL')return src[z];
-  const a={vis:0,vb:0,re:0,rp:0,fte:0};
-  ZONES.forEach(zz=>{const d=src[zz];a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;});
-  return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
+  const a={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
+  ZONES.forEach(zz=>{const d=src[zz];a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=(d.fteBU||0);});
+  return{...a,fte:+a.fte.toFixed(2),fteBU:Math.round(a.fteBU),
+    bppBU:a.fteBU?+(a.vis/a.fteBU).toFixed(4):null,
+    bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
     conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
     rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
 }
@@ -607,10 +613,12 @@ function monZ(y,z){
   const src=y==='2025'?R.zm25:R.zm26,nM=y==='2025'?12:R.n26;
   if(z!=='TOTAL')return src[z]||[];
   return Array.from({length:nM},(_,m)=>{
-    const a={vis:0,vb:0,re:0,rp:0,fte:0};
+    const a={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
     ZONES.forEach(zz=>{const d=(src[zz]||[])[m]||{};a.vis+=d.vis||0;a.vb+=d.vb||0;
-      a.re+=d.re||0;a.rp+=d.rp||0;a.fte+=d.fte||0;});
-    return{...a,fte:+a.fte.toFixed(2),bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
+      a.re+=d.re||0;a.rp+=d.rp||0;a.fte+=d.fte||0;a.fteBU+=d.fteBU||0;});
+    return{...a,fte:+a.fte.toFixed(2),fteBU:Math.round(a.fteBU),
+      bppBU:a.fteBU?+(a.vis/a.fteBU).toFixed(4):null,
+      bpp:a.fte?+(a.vis/a.fte).toFixed(4):null,
       conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
       rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
   });
@@ -624,6 +632,12 @@ function getV(y,z,k){
 function aggK(monthly,k,n){
   const nk={bpp:'vis',conv:'re',vpp:'vb',rp_pct:'rp',bppBU:'vis'}[k],dk={bpp:'fte',conv:'vis',vpp:'fte',rp_pct:'vb',bppBU:'fteBU'}[k];
   if(nk){let num=0,den=0;monthly.slice(0,n).forEach(d=>{if(d){num+=d[nk]||0;den+=d[dk]||0;}});return den?+(num/den).toFixed(4):null;}
+  // FTE and FTE BU are headcount — average, not sum
+  if(k==='fte'||k==='fteBU'){
+    const vals=monthly.slice(0,n).filter(d=>d&&(d.vis>0||d.vb>0));
+    if(!vals.length)return null;
+    return +(vals.reduce((s,d)=>s+(d[k]||0),0)/vals.length).toFixed(k==='fteBU'?0:2);
+  }
   return monthly.slice(0,n).reduce((s,d)=>s+(d?d[k]||0:0),0);
 }
 function delt(c,p,isPp=false){
@@ -667,7 +681,7 @@ function renderKPIs(){
       if(ms===0){
         const a26=aggK(m26,cc.k,R.n26),a25=aggK(m25.slice(0,R.n26),cc.k,R.n26);
         dH=delt(a26,a25,cc.k==='conv'||cc.k==='rp_pct')+`<span style="color:var(--dim);font-size:9px;margin-left:5px">vs E-${R.m26[R.n26-1]?.slice(0,3)} '25</span>`;
-      } else if(ms<=R.n26){dH=delt(v,getV('2025',zn,cc.k),cc.k==='conv'||cc.k==='rp_pct');}
+      } else if(ms<=R.n26){dH='';} // no delta for individual months
     }
     // For BPP card: add FTE, FTE BU and BPP BU as context below delta
     let fteCtx = '';
@@ -684,8 +698,7 @@ function renderKPIs(){
           const b26=aggK(m26,'bppBU',R.n26), b25=aggK(m25.slice(0,R.n26),'bppBU',R.n26);
           bppBUdH=delt(b26,b25);
         } else if(ms<=R.n26){
-          fteDH=delt(fte,getV('2025',zn,'fte'));
-          bppBUdH=delt(bppBU,getV('2025',zn,'bppBU'));
+          fteDH=''; bppBUdH=''; // no delta for individual months
         }
       }
       fteCtx = `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--bd);display:flex;flex-direction:column;gap:4px;">
@@ -746,8 +759,31 @@ function renderComp(){
   if(cC)cC.destroy();
   const ctx=document.getElementById('cC').getContext('2d');
   const opts=chartOpts(k);
-  opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp(k,c.raw)}`};
   opts.plugins.legend.display=true;
+
+  // Special case: FTE → show FTE real vs FTE BU side by side
+  if(k==='fte'||k==='fteBU'){
+    const y=yr==='ambos'?'2026':yr;
+    opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp('fte',c.raw)}`};
+    cC=new Chart(ctx,{type:'bar',data:{labels:ZONES,datasets:[
+      {label:'FTE Real',data:ZONES.map(z=>getV(y,z,'fte')),backgroundColor:'#2e7fff99',borderColor:'#2e7fff',borderWidth:1,borderRadius:4},
+      {label:'FTE BU',data:ZONES.map(z=>getV(y,z,'fteBU')),backgroundColor:'#29c99a55',borderColor:'#29c99a',borderWidth:1,borderRadius:4}
+    ]},options:opts});
+    return;
+  }
+
+  // Special case: BPP BU → show BPP real vs BPP BU side by side
+  if(k==='bppBU'){
+    const y=yr==='ambos'?'2026':yr;
+    opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp('bpp',c.raw)}`};
+    cC=new Chart(ctx,{type:'bar',data:{labels:ZONES,datasets:[
+      {label:'BPP Real',data:ZONES.map(z=>getV(y,z,'bpp')),backgroundColor:'#2e7fff99',borderColor:'#2e7fff',borderWidth:1,borderRadius:4},
+      {label:'BPP BU',data:ZONES.map(z=>getV(y,z,'bppBU')),backgroundColor:'#e0a72955',borderColor:'#e0a729',borderWidth:1,borderRadius:4}
+    ]},options:opts});
+    return;
+  }
+
+  opts.plugins.tooltip.callbacks={label:c=>` ${c.dataset.label}: ${fmtTp(k,c.raw)}`};
   cC=new Chart(ctx,{type:'bar',data:{labels:ZONES,datasets:[
     {label:'2025',data:ZONES.map(z=>getV('2025',z,k)),backgroundColor:'#5ba3ff55',borderColor:'#5ba3ff',borderWidth:1,borderRadius:4},
     {label:'2026',data:ZONES.map(z=>getV('2026',z,k)),backgroundColor:'#2e7fff99',borderColor:'#2e7fff',borderWidth:1,borderRadius:4}
