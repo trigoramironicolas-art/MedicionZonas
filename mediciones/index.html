@@ -604,15 +604,24 @@ function totZ(y,z){
   if(z!=='TOTAL')return src[z];
   const a={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
   let nZActive=0;
+  const activeZones=[];
   ZONES.forEach(zz=>{const d=src[zz];
     a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=(d.fteBU||0);
-    if(d.vis>0||d.vb>0) nZActive++;
+    if(d.vis>0||d.vb>0){ nZActive++; activeZones.push(d); }
   });
   const nZAvg=Math.max(nZActive,1);
-  const visAvgT=+(a.vis/nZAvg).toFixed(2), fteAvgT=+(a.fte/nZAvg).toFixed(2), fteBUAvgT=Math.round(a.fteBU/nZAvg);
+  // BPP = weighted: sum(vis) / sum(fte) across active zones (already monthly averages)
+  // This gives correct result regardless of how many zones are active
+  const totalVisByFte = activeZones.reduce((s,d)=>s+d.vis,0);
+  const totalFte = activeZones.reduce((s,d)=>s+d.fte,0);
+  const totalFteBU = activeZones.reduce((s,d)=>s+(d.fteBU||0),0);
+  const fteAvgT=+(totalFte/nZAvg).toFixed(2), fteBUAvgT=Math.round(totalFteBU/nZAvg);
+  // visAvg per zone then divide by fte avg per zone = weighted BPP
+  const bppTotal = totalFte>0 ? +((totalVisByFte/nZAvg)/(totalFte/nZAvg)).toFixed(4) : null;
+  const bppBUTotal = totalFteBU>0 ? +((totalVisByFte/nZAvg)/(totalFteBU/nZAvg)).toFixed(4) : null;
   return{...a,fte:fteAvgT,fteBU:fteBUAvgT,
-    bppBU:fteBUAvgT?+(visAvgT/fteBUAvgT).toFixed(4):null,
-    bpp:fteAvgT?+(visAvgT/fteAvgT).toFixed(4):null,
+    bppBU:bppBUTotal,
+    bpp:bppTotal,
     conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.vis?+(a.vb/a.vis).toFixed(4):null,
     rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
 }
