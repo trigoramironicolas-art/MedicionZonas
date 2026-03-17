@@ -435,6 +435,15 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
       </main>
     </div>
 
+    <!-- INSIGHTS -->
+    <div id="insightsWrap" style="display:none;padding:0 28px">
+      <div class="sec-title" style="margin:28px 0 14px;display:flex;align-items:center;gap:10px">
+        QUÉ PASÓ
+        <span style="font-size:9px;color:var(--dim);font-weight:400;letter-spacing:.5px">ANÁLISIS AUTOMÁTICO POR ZONA</span>
+      </div>
+      <div id="insightsGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;margin-bottom:32px"></div>
+    </div>
+
     <!-- ANALYSIS PANEL -->
     <div id="anlPanel">
       <div class="apl-head">
@@ -873,6 +882,140 @@ function renderTable(){
   document.getElementById('tZ').innerHTML=h;
 }
 
+
+// ── Insights: Qué pasó ───────────────────────────────────────────────────
+function buildInsightData(){
+  // Only works for 2026, needs previous period for comparison
+  const y='2026';
+  const nM=R.n26;
+  return ZONES.map(z=>{
+    const cur = totZ(y,z);
+    // Previous period: same months last year
+    const prev = totZ('2025',z);
+    // Monthly data for current and previous
+    const mCur  = monZ(y,z);
+    const mPrev = monZ('2025',z);
+    // Use aggK for proper weighted averages
+    const bpp_actual   = aggK(mCur,'bpp',nM);
+    const bpp_anterior = aggK(mPrev.slice(0,nM),'bpp',nM);
+    const conv_actual  = aggK(mCur,'conv',nM);
+    const conv_anterior= aggK(mPrev.slice(0,nM),'conv',nM);
+    const vis_actual   = cur.vis;
+    const vis_anterior = mPrev.slice(0,nM).reduce((s,d)=>s+(d?.vis||0),0);
+    const fte_actual   = aggK(mCur,'fte',nM);
+    const fte_anterior = aggK(mPrev.slice(0,nM),'fte',nM);
+    const bpp_BU       = aggK(mCur,'bppBU',nM);
+    const fte_BU       = aggK(mCur,'fteBU',nM);
+    return { zona:z, bpp_actual, bpp_anterior, bpp_BU,
+             conv_actual, conv_anterior, vis_actual, vis_anterior,
+             fte_actual, fte_anterior, fte_BU };
+  }).filter(d=>d.vis_actual>0); // only zones with data
+}
+
+function generateInsights(data){
+  return data.map(d=>{
+    const {zona,bpp_actual,bpp_anterior,bpp_BU,conv_actual,conv_anterior,
+           vis_actual,vis_anterior,fte_actual,fte_anterior,fte_BU} = d;
+
+    // ── BPP analysis ──
+    const bppVsPrev = bpp_anterior>0 ? (bpp_actual-bpp_anterior)/bpp_anterior : 0;
+    const bppVsBU   = bpp_BU>0       ? (bpp_actual-bpp_BU)/bpp_BU             : 0;
+    const visChange = vis_anterior>0  ? (vis_actual-vis_anterior)/vis_anterior  : 0;
+    const fteChange = fte_anterior>0  ? (fte_actual-fte_anterior)/fte_anterior  : 0;
+    const convDiff  = (conv_actual||0) - (conv_anterior||0); // in ratio units
+
+    // ── que_paso ──
+    let que_paso = '';
+    if(bppVsPrev < -0.05){
+      if(fteChange > 0.03)
+        que_paso = `BPP cayó ${Math.abs(bppVsPrev*100).toFixed(0)}% vs año anterior por aumento de dotación (+${(fteChange*100).toFixed(0)}% FTE). Las visitas no acompañaron el crecimiento del equipo.`;
+      else
+        que_paso = `BPP cayó ${Math.abs(bppVsPrev*100).toFixed(0)}% vs año anterior por menor volumen de visitas (${visChange>=0?'+':''}${(visChange*100).toFixed(0)}%). El equipo se mantuvo estable.`;
+    } else if(bppVsPrev > 0.05){
+      if(fteChange < -0.03)
+        que_paso = `BPP subió ${(bppVsPrev*100).toFixed(0)}% vs año anterior. El equipo se redujo (${(fteChange*100).toFixed(0)}% FTE) pero las visitas se sostuvieron — mayor eficiencia individual.`;
+      else
+        que_paso = `BPP subió ${(bppVsPrev*100).toFixed(0)}% vs año anterior por mayor volumen de visitas (+${(visChange*100).toFixed(0)}%) con dotación estable.`;
+    } else {
+      que_paso = `BPP estable vs año anterior (${bppVsPrev>=0?'+':''}${(bppVsPrev*100).toFixed(1)}%). Sin cambios significativos en visitas ni dotación.`;
+    }
+
+    // Add conversion note
+    if(convDiff < -0.02)
+      que_paso += ` Conversión bajó ${Math.abs(convDiff*100).toFixed(1)}pp${visChange>0?' con más visitas — posible problema de calidad de tráfico':''}.`;
+    else if(convDiff > 0.02)
+      que_paso += ` Conversión subió ${(convDiff*100).toFixed(1)}pp${visChange<0?' con menos visitas — alta eficiencia en tráfico reducido':''}.`;
+
+    // ── donde_estamos ──
+    const bppBULabel = bpp_BU ? `BPP BU: ${bpp_BU.toFixed(2)}` : 'sin objetivo BU';
+    const vsObj = bppVsBU >= 0
+      ? `${(bppVsBU*100).toFixed(1)}% por encima del objetivo (${bppBULabel})`
+      : `${Math.abs(bppVsBU*100).toFixed(1)}% por debajo del objetivo (${bppBULabel})`;
+    const donde_estamos = `BPP actual: ${bpp_actual?bpp_actual.toFixed(2):'—'} — ${vsObj}. Conversión: ${conv_actual?(conv_actual*100).toFixed(1)+'%':'—'}.`;
+
+    // ── que_hacer ──
+    let que_hacer = '';
+    if(bppVsBU < -0.1)
+      que_hacer = `Revisar agenda de visitas. El equipo tiene capacidad instalada (FTE BU: ${fte_BU?Math.round(fte_BU):'—'}) pero las visitas no llegan al nivel proyectado.`;
+    else if(bppVsBU >= -0.1 && bppVsBU < 0)
+      que_hacer = `Zona cerca del objetivo. Mantener ritmo y monitorear conversión para no perder eficiencia.`;
+    else
+      que_hacer = `Zona por encima del objetivo de visitas. Foco en conversión (${conv_actual?(conv_actual*100).toFixed(1)+'%':'—'}) para capitalizar el volumen.`;
+
+    // Priority score: negative gap vs BU is worst
+    const priority = -(bppVsBU);
+
+    return { zona, que_paso, donde_estamos, que_hacer, priority,
+             bppVsBU, bppVsPrev, convDiff };
+  }).sort((a,b)=>b.priority-a.priority);
+}
+
+function renderInsights(){
+  if(yr==='2025'||!R){
+    document.getElementById('insightsWrap').style.display='none';
+    return;
+  }
+  const raw = buildInsightData();
+  if(!raw.length){
+    document.getElementById('insightsWrap').style.display='none';
+    return;
+  }
+  const insights = generateInsights(raw);
+  document.getElementById('insightsWrap').style.display='block';
+  document.getElementById('insightsGrid').innerHTML = insights.map(ins=>{
+    const isBelow = ins.bppVsBU < 0;
+    const accent  = isBelow ? 'var(--red)' : 'var(--green)';
+    const badge   = isBelow
+      ? `<span style="background:var(--red)18;color:var(--red);border:1px solid var(--red)30;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600">↓ BAJO OBJETIVO</span>`
+      : `<span style="background:var(--green)18;color:var(--green);border:1px solid var(--green)30;padding:2px 8px;border-radius:4px;font-size:9px;font-weight:600">↑ SOBRE OBJETIVO</span>`;
+    const convBadge = ins.convDiff < -0.02
+      ? `<span style="color:var(--red);font-size:9px">▼ Conv ${(ins.convDiff*100).toFixed(1)}pp</span>`
+      : ins.convDiff > 0.02
+      ? `<span style="color:var(--green);font-size:9px">▲ Conv +${(ins.convDiff*100).toFixed(1)}pp</span>`
+      : '';
+
+    return `<div style="background:var(--s1);border:1px solid ${accent}40;border-left:3px solid ${accent};
+      border-radius:10px;padding:16px 18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <span style="font-size:12px;font-weight:700;color:var(--t)">${ins.zona}</span>
+        <div style="display:flex;gap:6px;align-items:center">${convBadge}${badge}</div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">QUÉ PASÓ</div>
+        <div style="font-size:11px;color:var(--sub);line-height:1.5">${ins.que_paso}</div>
+      </div>
+      <div style="margin-bottom:8px;padding-top:8px;border-top:1px solid var(--bd)">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">DÓNDE ESTAMOS</div>
+        <div style="font-size:11px;color:var(--sub);line-height:1.5">${ins.donde_estamos}</div>
+      </div>
+      <div style="padding-top:8px;border-top:1px solid var(--bd)">
+        <div style="font-size:9px;font-family:'IBM Plex Mono',monospace;color:var(--dim);letter-spacing:.5px;margin-bottom:3px">QUÉ HACER</div>
+        <div style="font-size:11px;color:var(--t);line-height:1.5;font-weight:500">${ins.que_hacer}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 // ── Main trigger ─────────────────────────────────────────────────────────
 function go(){
   yr=document.getElementById('sY').value;ms=+document.getElementById('sM').value;
@@ -882,7 +1025,7 @@ function go(){
     o.style.color=o.disabled?'var(--dim)':'';
   });
   if(yr==='2026'&&ms>R.n26){document.getElementById('sM').value='0';ms=0;}
-  renderKPIs();renderEvol();renderComp();renderRank();renderTable();
+  renderKPIs();renderEvol();renderComp();renderRank();renderTable();renderInsights();
   // Refresh analysis panel if open
   if(R && document.getElementById('anlPanel').classList.contains('open')){
     refreshPanelForPeriod();
