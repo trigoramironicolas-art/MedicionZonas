@@ -582,8 +582,9 @@ function parseExcel(wb){
     zm.slice(0,n).forEach(d=>{a.vis+=d.vis;a.vb+=d.vb;a.re+=d.re;a.rp+=d.rp;a.fte+=d.fte;a.fteBU+=d.fteBU||0;});
     const fteAvg=+(a.fte/nActive).toFixed(2);
     const fteBUAvg=Math.round(a.fteBU/nActive);
+    const visAvg=+(a.vis/nActive).toFixed(2);
     return{...a,fte:fteAvg,fteBU:fteBUAvg,
-      bppBU:fteBUAvg?+(a.vis/fteBUAvg).toFixed(4):null,bpp:fteAvg?+(a.vis/fteAvg).toFixed(4):null,
+      bppBU:fteBUAvg?+(visAvg/fteBUAvg).toFixed(4):null,bpp:fteAvg?+(visAvg/fteAvg).toFixed(4):null,
       conv:a.vis?+(a.re/a.vis).toFixed(4):null,vpp:a.fte?+(a.vb/a.fte).toFixed(4):null,
       rp_pct:a.vb?+(a.rp/a.vb).toFixed(4):null};
   }
@@ -830,14 +831,25 @@ function renderTable(){
       <td>${fmt.conv(d.conv)}</td>${dp?`<td style="color:var(--dim)">${fmt.conv(dp.conv)}</td><td>${delt(d.conv,dp.conv,true)}</td>`:''}
       <td>${fmt.vpp(d.vpp)}</td><td>${fmt.rp_pct(d.rp_pct)}</td></tr>`;
   }
-  const tt={vis:0,vb:0,re:0,rp:0,fte:0};
+  const tt={vis:0,vb:0,re:0,rp:0,fte:0,fteBU:0};
+  const nZ=ZONES.length;
   ZONES.forEach(z=>{tt.vis+=getV(y,z,'vis')||0;tt.vb+=getV(y,z,'vb')||0;
-    tt.re+=getV(y,z,'re')||0;tt.rp+=getV(y,z,'rp')||0;tt.fte+=getV(y,z,'fte')||0;});
-  tt.bpp=tt.fte?tt.vb/tt.fte:null;tt.conv=tt.vis?tt.re/tt.vis:null;
-  tt.vpp=tt.vis?tt.vb/tt.vis:null;tt.rp_pct=tt.vb?tt.rp/tt.vb:null;
+    tt.re+=getV(y,z,'re')||0;tt.rp+=getV(y,z,'rp')||0;
+    tt.fte+=getV(y,z,'fte')||0;tt.fteBU+=getV(y,z,'fteBU')||0;});
+  // FTE and FTE BU: already averaged per zone, sum across zones is correct for total
+  // BPP = avg visitas / avg FTE across all zones
+  const ttVisAvg=tt.vis/nZ, ttFteAvg=tt.fte/nZ, ttFteBUAvg=Math.round(tt.fteBU/nZ);
+  tt.bpp=ttFteAvg?+(ttVisAvg/ttFteAvg).toFixed(4):null;
+  tt.bppBU=ttFteBUAvg?+(ttVisAvg/ttFteBUAvg).toFixed(4):null;
+  tt.conv=tt.vis?+(tt.re/tt.vis).toFixed(4):null;
+  tt.vpp=tt.vis?+(tt.vb/tt.vis).toFixed(4):null;tt.rp_pct=tt.vb?+(tt.rp/tt.vb).toFixed(4):null;
+  const ttDeltaBU=(tt.bpp!=null&&tt.bppBU!=null&&tt.bppBU!==0)?
+    (()=>{const pct=(tt.bpp-tt.bppBU)/tt.bppBU;const col=pct>=0?'var(--green)':'var(--red)';
+      return`<span style="color:${col};font-weight:600">${pct>=0?'+':''}${(pct*100).toFixed(1)}%</span>`;})():'—';
   h+=`<tr class="ttot"><td>TOTAL</td><td>${fmt.vis(tt.vis)}</td><td>${fmt.fte(tt.fte)}</td>
-    <td>${fmt.vb(tt.vb)}</td><td>${fmt.re(tt.re)}</td><td>${fmt.rp(tt.rp)}</td>
-    <td>${fmt.bpp(tt.bpp)}</td>${yp?'<td></td><td></td>':''}
+    <td>${fmt.fteBU(ttFteBUAvg)}</td><td>${fmt.vb(tt.vb)}</td><td>${fmt.re(tt.re)}</td><td>${fmt.rp(tt.rp)}</td>
+    <td>${fmt.bpp(tt.bpp)}</td><td>${fmt.bppBU(tt.bppBU)}</td><td>${ttDeltaBU}</td>
+    ${yp?'<td></td><td></td>':''}
     <td>${fmt.conv(tt.conv)}</td>${yp?'<td></td><td></td>':''}
     <td>${fmt.vpp(tt.vpp)}</td><td>${fmt.rp_pct(tt.rp_pct)}</td></tr></tbody>`;
   document.getElementById('tZ').innerHTML=h;
