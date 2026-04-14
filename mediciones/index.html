@@ -378,6 +378,7 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
         <div class="main-nav">
           <div class="mnav active" onclick="switchView('monthly')" id="navMonthly">Resumen Mensual</div>
           <div class="mnav" onclick="switchView('daily')" id="navDaily">Vista Diaria</div>
+          <div class="mnav" onclick="switchView('comparativa')" id="navComparativa">Comparativa Mensual</div>
         </div>
 
         <!-- Monthly view -->
@@ -429,6 +430,15 @@ tr.ttot td{color:var(--t);font-weight:700;border-top:1px solid var(--bd);border-
         </div>
 
         </div><!-- end viewMonthly -->
+
+        <!-- Comparativa view -->
+        <div class="view" id="viewComparativa">
+          <div id="comparativaContent">
+            <div style="padding:40px;text-align:center;color:var(--sub);font-family:'IBM Plex Mono',monospace;font-size:11px">
+              Cargá un archivo Excel para ver la comparativa mensual.
+            </div>
+          </div>
+        </div>
 
         <!-- Daily view -->
         <div class="view" id="viewDaily">
@@ -1148,6 +1158,148 @@ function renderInsights(){
   }).join('');
 }
 
+
+// ── Vista Comparativa Mensual ─────────────────────────────────────────────
+function buildComparativaData(zona){
+  // Returns array of {label, vis, fte, vb, re, rp, bpp, conv, prod, vpp, rpPct}
+  // for the last 13 months (up to 12 months 2025 + months 2026)
+  const months26 = R.m26;          // ['Enero','Febrero','Marzo',...]
+  const n26      = R.n26;
+  const MESES_ES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio',
+                    'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const rows = [];
+
+  // 2025 months — take last (13-n26) months so total = 13
+  const n25needed = Math.max(0, 13 - n26);
+  const start25   = Math.max(0, 12 - n25needed);
+
+  for(let m = start25; m < 12; m++){
+    const d = (R.zm25[zona]||[])[m] || {};
+    const label = MESES_ES[m].slice(0,3)+'-25';
+    rows.push(_compRow(label, d));
+  }
+
+  // 2026 months
+  for(let m = 0; m < n26; m++){
+    const d = (R.zm26[zona]||[])[m] || {};
+    const label = MESES_ES[m].slice(0,3)+'-26';
+    rows.push(_compRow(label, d));
+  }
+
+  return rows;
+}
+
+function _compRow(label, d){
+  const vis = d.vis||0, vb = d.vb||0, re = d.re||0, rp = d.rp||0, fte = d.fte||0;
+  return {
+    label,
+    vis, fte: fte?+fte.toFixed(1):0, vb, re, rp,
+    bpp:  fte>0 ? +(vis/fte).toFixed(2) : null,
+    conv: vis>0 ? +(re/vis*100).toFixed(1) : null,
+    prod: vis>0 ? +((re+rp)/vis*100).toFixed(1) : null,
+    vpp:  fte>0 ? +(vb/fte).toFixed(2) : null,
+    rpPct: vb>0 ? +(rp/vb*100).toFixed(1) : null,
+  };
+}
+
+function renderComparativa(){
+  if(!R){ return; }
+  const zona = document.getElementById('compZona')?.value || 'TOTAL';
+  const rows  = buildComparativaData(zona);
+  if(!rows.length) return;
+
+  // KPI rows to display
+  const KPIS = [
+    { key:'vis',   label:'Visitas',             fmt: v=>v==null?'—':Math.round(v).toLocaleString('es'), color:'var(--accent2)' },
+    { key:'fte',   label:'FTE',                 fmt: v=>v==null?'—':v.toFixed(1),                       color:'var(--silver)' },
+    { key:'vb',    label:'Ventas Brutas',        fmt: v=>v==null?'—':Math.round(v).toLocaleString('es'), color:'var(--t)' },
+    { key:'re',    label:'Ventas RE',            fmt: v=>v==null?'—':Math.round(v).toLocaleString('es'), color:'var(--green)' },
+    { key:'rp',    label:'Ventas RP',            fmt: v=>v==null?'—':Math.round(v).toLocaleString('es'), color:'var(--amber)' },
+    { key:'bpp',   label:'BPP',                  fmt: v=>v==null?'—':v.toFixed(2),                       color:'var(--accent)' },
+    { key:'conv',  label:'% Conversión Bruta',   fmt: v=>v==null?'—':v.toFixed(1)+'%',                   color:'var(--green)' },
+    { key:'prod',  label:'% Productividad Bruta',fmt: v=>v==null?'—':v.toFixed(1)+'%',                   color:'var(--accent2)' },
+    { key:'vpp',   label:'VPP',                  fmt: v=>v==null?'—':v.toFixed(2),                       color:'var(--t)' },
+    { key:'rpPct', label:'% Ventas RP',          fmt: v=>v==null?'—':v.toFixed(1)+'%',                   color:'var(--amber)' },
+  ];
+
+  // Column headers
+  const months = rows.map(r=>r.label);
+  const nCols  = months.length;
+
+  let html = `
+  <div style="padding:0 0 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div style="font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--dim);text-transform:uppercase">Zona</div>
+    <select id="compZona" onchange="renderComparativa()"
+      style="background:var(--s2);border:1px solid var(--bd2);border-radius:6px;color:var(--t);
+      font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 10px;outline:none">
+      <option value="TOTAL" ${zona==='TOTAL'?'selected':''}>TOTAL País</option>
+      ${ZONES.map(z=>`<option value="${z}" ${zona===z?'selected':''}>${z}</option>`).join('')}
+    </select>
+    <span style="font-size:10px;color:var(--dim);font-family:'IBM Plex Mono',monospace">Últimos 13 meses</span>
+  </div>
+  <div style="overflow-x:auto;border-radius:10px;border:1px solid var(--bd)">
+  <table style="width:100%;border-collapse:collapse;min-width:900px">
+    <thead>
+      <tr style="background:var(--s2)">
+        <th style="text-align:left;padding:10px 14px;font-family:'IBM Plex Mono',monospace;
+          font-size:9px;letter-spacing:.8px;color:var(--dim);text-transform:uppercase;
+          border-bottom:1px solid var(--bd);white-space:nowrap;min-width:160px">KPI</th>
+        ${months.map((m,i)=>{
+          const is26 = m.includes('26');
+          const isLast25 = !is26 && i===months.filter(mm=>!mm.includes('26')).length-1;
+          return `<th style="padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;
+            color:${is26?'var(--accent2)':'var(--sub)'};text-align:right;
+            border-bottom:1px solid var(--bd);white-space:nowrap;
+            ${isLast25?'border-right:2px solid var(--bd2)':''}">${m}</th>`;
+        }).join('')}
+        <th style="padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;
+          color:var(--sub);text-align:right;border-bottom:1px solid var(--bd);
+          border-left:1px solid var(--bd);white-space:nowrap">Media</th>
+        <th style="padding:8px 10px;font-family:'IBM Plex Mono',monospace;font-size:9px;
+          color:var(--sub);text-align:right;border-bottom:1px solid var(--bd);white-space:nowrap">VarMes-1</th>
+      </tr>
+    </thead>
+    <tbody>
+  `;
+
+  KPIS.forEach((kpi,ki)=>{
+    const vals = rows.map(r=>r[kpi.key]);
+    const nonNull = vals.filter(v=>v!=null&&v!==0);
+    const avg = nonNull.length ? nonNull.reduce((a,b)=>a+b,0)/nonNull.length : null;
+    const last = vals[vals.length-1];
+    const prev = vals[vals.length-2];
+    const varMes = (last!=null&&prev!=null&&prev!==0)
+      ? ((last-prev)/Math.abs(prev)*100)
+      : null;
+
+    const bgRow = ki%2===0 ? 'background:var(--s1)' : 'background:#0f1520';
+
+    html += `<tr style="${bgRow}">
+      <td style="padding:9px 14px;font-size:11px;font-weight:500;color:${kpi.color};
+        white-space:nowrap;border-right:1px solid var(--bd)">${kpi.label}</td>
+      ${vals.map((v,i)=>{
+        const is26 = months[i].includes('26');
+        const isLast25 = !is26 && i===months.filter(mm=>!mm.includes('26')).length-1;
+        return `<td style="padding:7px 10px;text-align:right;font-family:'IBM Plex Mono',monospace;
+          font-size:11px;color:${is26?'var(--t)':'var(--sub)'};
+          ${isLast25?'border-right:2px solid var(--bd2)':''}">${kpi.fmt(v)}</td>`;
+      }).join('')}
+      <td style="padding:7px 10px;text-align:right;font-family:'IBM Plex Mono',monospace;
+        font-size:10px;color:var(--dim);border-left:1px solid var(--bd)">${avg!=null?kpi.fmt(avg):'—'}</td>
+      <td style="padding:7px 10px;text-align:right;font-family:'IBM Plex Mono',monospace;font-size:10px">
+        ${varMes!=null
+          ? `<span style="color:${varMes>=0?'var(--green)':'var(--red)'};font-weight:600">${varMes>=0?'+':''}${varMes.toFixed(0)}%</span>`
+          : '—'}
+      </td>
+    </tr>`;
+  });
+
+  html += `</tbody></table></div>`;
+
+  document.getElementById('comparativaContent').innerHTML = html;
+}
+
 // ── Main trigger ─────────────────────────────────────────────────────────
 function go(){
   yr=document.getElementById('sY').value;ms=+document.getElementById('sM').value;
@@ -1540,11 +1692,16 @@ function lastDataIdxForZone(zone){
 }
 
 function switchView(v){
-  document.getElementById('viewMonthly').classList.toggle('active', v==='monthly');
-  document.getElementById('viewDaily').classList.toggle('active', v==='daily');
-  document.getElementById('navMonthly').classList.toggle('active', v==='monthly');
-  document.getElementById('navDaily').classList.toggle('active', v==='daily');
+  ['viewMonthly','viewDaily','viewComparativa'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.toggle('active', id==='view'+v.charAt(0).toUpperCase()+v.slice(1));
+  });
+  ['navMonthly','navDaily','navComparativa'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.toggle('active', id==='nav'+v.charAt(0).toUpperCase()+v.slice(1));
+  });
   if(v==='daily' && RD) renderDaily();
+  if(v==='comparativa' && R) renderComparativa();
 }
 
 function setDRange(n){
@@ -1905,6 +2062,7 @@ function loadFile(file){
       setTimeout(()=>{bar.style.transition='none';prog(0);
         setTimeout(()=>{bar.style.transition='width .25s';},50);},500);
       go();
+      if(document.getElementById('viewComparativa')?.style.display!=='none') renderComparativa();
     } catch(err){prog(0);document.getElementById('uerr').textContent='⚠ '+err.message;}
   };
   reader.readAsArrayBuffer(file);
